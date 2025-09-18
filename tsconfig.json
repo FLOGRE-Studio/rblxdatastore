@@ -4,8 +4,8 @@
 		"allowSyntheticDefaultImports": true,
 		"downlevelIteration": true,
 		"jsx": "react",
-		"jsxFactory": "Roact.createElement",
-		"jsxFragmentFactory": "Roact.createFragment",
+		"jsxFactory": "React.createElement",
+		"jsxFragmentFactory": "React.createFragment",
 		"module": "commonjs",
 		"moduleResolution": "Node",
 		"noLib": true,
@@ -23,5 +23,7 @@
 		"incremental": true,
 		"tsBuildInfoFile": "out/tsconfig.tsbuildinfo",
 		"declaration": true
-	}
+	},
+	"include": ["src"],
+	"exclude": ["node_modules", "out", "eslint.config.mts"]
 }

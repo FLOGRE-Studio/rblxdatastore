@@ -1,15 +1,15 @@
 {
   "name": "@rbxts/rblxdatastore",
   "version": "1.0.0",
-  "main": "out/init.lua",
+  "main": "out/main.luau",
   "scripts": {
     "build": "rbxtsc",
     "watch": "rbxtsc -w",
     "prepublishOnly": "npm run build"
   },
   "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "author": "FLOGRE Studio",
+  "license": "MIT",
   "description": "",
   "types": "out/index.d.ts",
   "files": [
@@ -20,13 +20,17 @@
     "access": "public"
   },
   "devDependencies": {
+    "@eslint/js": "^9.35.0",
     "@rbxts/compiler-types": "^3.0.0-types.0",
     "@rbxts/types": "^1.0.882",
     "@typescript-eslint/eslint-plugin": "^8.44.0",
     "@typescript-eslint/parser": "^8.44.0",
     "eslint": "^9.35.0",
     "eslint-plugin-roblox-ts": "^1.1.0",
+    "globals": "^16.4.0",
+    "jiti": "^2.5.1",
     "roblox-ts": "^3.0.0",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.44.0"
   }
 }
