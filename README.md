@@ -1,2 +1,2 @@
 # RblxDataStore
-A robust, strictly-typed Roblox DataStore library written in TypeScript through Roblox-TS transpiler, designed to organize data with schema, enforce strict data validation.
+A robust, strictly-typed Roblox DataStore library written in TypeScript through (Roblox-TS)[https://roblox-ts.com] transpiler, designed to organize data with schema, enforce strict data validation.
