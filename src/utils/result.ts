@@ -15,7 +15,7 @@ export class Ok<T, E> {
 
 export class Err<T, E> {
     readonly type = "err";
-    constructor(public readonly error: E) {}
+    constructor(public readonly errorType: E) {}
 
     isOk(): this is Ok<T, E> {
         return false;

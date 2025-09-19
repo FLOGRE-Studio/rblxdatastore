@@ -7,11 +7,12 @@
  * Email        : mubinet.workspace@gmail.com
  * 
  * @LICENSE
- * MIT License - Copyright (c) 2025 FLOGRE STUDIO
+ * MIT License - Copyright (c) 2025 FLOGRE Studio
 */
 
 import { RblxDocument } from "./rblxdocument";
 import { Migration } from "./types/global";
+import { Configuration } from "./utils/rblxdocumentstore-configuration";
 import { RblxLogger } from "./utils/rblxlogger";
 
 /**
@@ -25,6 +26,7 @@ export class RblxDocumentStore<DataSchema> {
         private _defaultSchema: DataSchema;
         private _migrations: Migration<DataSchema>[];
         private _documents: Map<string, RblxDocument<DataSchema>>;
+        private _configuration: Configuration;
     //
 
     /**
@@ -38,24 +40,37 @@ export class RblxDocumentStore<DataSchema> {
         dataStore: DataStore,
         schemaValidate: (data: Partial<DataSchema> & Record<string, unknown>) => boolean,
         defaultSchema: DataSchema,
-        migrations: Migration<DataSchema>[]
+        migrations: Migration<DataSchema>[],
+        configuration: Configuration
     ) {
         this._dataStore = dataStore;
         this._schemaValidate = schemaValidate;
         this._defaultSchema = defaultSchema;
         this._migrations = migrations;
+        this._configuration = configuration;
         this._documents = new Map();
 
         // Invoke the main method.
         this._main();
     }
 
-    private _main() {
+    private _main(): void {
         game.BindToClose(() => {
             RblxLogger.debug.logInfo("Attempting to close all documents...");
             for (const [, document] of this._documents) {
                 document.close();
             }
         });
+    }
+
+    public getRblxDocument(key: string): RblxDocument<DataSchema> {
+        return new RblxDocument(
+            this._dataStore,
+            key,
+            this._schemaValidate,
+            this._defaultSchema,
+            this._migrations,
+            this._configuration
+        );
     }
 }   

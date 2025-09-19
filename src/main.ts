@@ -7,7 +7,7 @@
  * Email        : mubinet.workspace@gmail.com
  * 
  * @LICENSE
- * MIT License - Copyright (c) 2025 FLOGRE STUDIO
+ * MIT License - Copyright (c) 2025 FLOGRE Studio
 */
 
 import { RblxDocument } from "./rblxdocument";
