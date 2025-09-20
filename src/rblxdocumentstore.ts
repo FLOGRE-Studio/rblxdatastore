@@ -12,8 +12,17 @@
 
 import { RblxDocument } from "./rblxdocument";
 import { Migration } from "./types/global";
-import { Configuration } from "./utils/rblxdocumentstore-configuration";
+import { RblxDataStoreUtility } from "./utils/rblxdatastore-utility";
+import { RblxDocumentStoreConfiguration } from "./utils/rblxdocumentstore-configuration";
 import { RblxLogger } from "./utils/rblxlogger";
+
+interface RblxDocumentProps<DataSchema> {
+    dataStore                             : DataStore;
+    schemaValidate                        : (data: Partial<DataSchema> & Record<string, unknown>) => boolean;
+    defaultSchema                         : DataSchema;
+    migrations                            : Migration<DataSchema>[];
+    rblxDocumentStoreConfiguration        : RblxDocumentStoreConfiguration;
+}
 
 /**
  * ## RblxDocumentStore
@@ -21,12 +30,12 @@ import { RblxLogger } from "./utils/rblxlogger";
 */
 export class RblxDocumentStore<DataSchema> {
     //* FIELDS *\\
-        private _dataStore: DataStore;
-        private _schemaValidate: (data: Partial<DataSchema> & Record<string, unknown>) => boolean;
-        private _defaultSchema: DataSchema;
-        private _migrations: Migration<DataSchema>[];
-        private _documents: Map<string, RblxDocument<DataSchema>>;
-        private _configuration: Configuration;
+        private _dataStore                             : DataStore;
+        private _schemaValidate                        : (data: Partial<DataSchema> & Record<string, unknown>) => boolean;
+        private _defaultSchema                         : DataSchema;
+        private _migrations                            : Migration<DataSchema>[];
+        private _documents                             : Map<string, RblxDocument<DataSchema>>;
+        private _rblxDocumentStoreConfiguration        : RblxDocumentStoreConfiguration;
     //
 
     /**
@@ -36,25 +45,21 @@ export class RblxDocumentStore<DataSchema> {
      * @param defaultSchema The default data that will be created for the associated key in case it does not exist.
      * @param migrations The array of functions responsible for mutating data over time.
      */
-    constructor(
-        dataStore: DataStore,
-        schemaValidate: (data: Partial<DataSchema> & Record<string, unknown>) => boolean,
-        defaultSchema: DataSchema,
-        migrations: Migration<DataSchema>[],
-        configuration: Configuration
-    ) {
-        this._dataStore = dataStore;
-        this._schemaValidate = schemaValidate;
-        this._defaultSchema = defaultSchema;
-        this._migrations = migrations;
-        this._configuration = configuration;
-        this._documents = new Map();
+    constructor(props: RblxDocumentProps<DataSchema>) {
+        this._dataStore                           = props.dataStore;
+        this._schemaValidate                      = props.schemaValidate;
+        this._defaultSchema                       = props.defaultSchema;
+        this._migrations                          = props.migrations;
+        this._rblxDocumentStoreConfiguration      = props.rblxDocumentStoreConfiguration;
+        this._documents                           = new Map();
 
         // Invoke the main method.
         this._main();
     }
 
     private _main(): void {
+        if (!this._rblxDocumentStoreConfiguration.bindToClose) return;
+
         game.BindToClose(() => {
             RblxLogger.debug.logInfo("Attempting to close all documents...");
             for (const [, document] of this._documents) {
@@ -64,13 +69,14 @@ export class RblxDocumentStore<DataSchema> {
     }
 
     public getRblxDocument(key: string): RblxDocument<DataSchema> {
-        return new RblxDocument(
-            this._dataStore,
-            key,
-            this._schemaValidate,
-            this._defaultSchema,
-            this._migrations,
-            this._configuration
-        );
+        return new RblxDocument({
+            dataStore: this._dataStore,
+            rblxDataStoreUtility: new RblxDataStoreUtility(this._dataStore),
+            key: key,
+            schemaValidate: this._schemaValidate,
+            defaultSchema: this._defaultSchema,
+            migrations: this._migrations,
+            rblxDocumentStoreConfiguration: this._rblxDocumentStoreConfiguration
+        });
     }
 }   

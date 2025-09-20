@@ -77,7 +77,7 @@ export default defineConfig([
             "no-return-assign": ["error", "always"],
             "no-script-url": "error",
             "no-self-assign": "error",
-            "no-self-compare": "error",
+            "no-self-compare": "off",
             "no-sequences": "error",
             "no-setter-return": "error",
             "no-shadow": "error",
@@ -125,7 +125,7 @@ export default defineConfig([
             "valid-typeof": ["error", { "requireStringLiterals": true }],
 
             /* Imports / ES Modules */
-            "no-restricted-imports": ["error", { "patterns": ["../*"] }],
+            // "no-restricted-imports": ["error", { "patterns": ["../*"] }],
             "@typescript-eslint/no-require-imports": "error",
 
             /* Style/Consistency (optional strictness) */
