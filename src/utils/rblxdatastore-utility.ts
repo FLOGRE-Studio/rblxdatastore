@@ -11,15 +11,17 @@
 */
 
 
+import { DataStoreService } from "@rbxts/services";
 import { retry } from "../func/retry";
 import { RblxLogger } from "./rblxlogger";
 import { Err, Ok, Result } from "./result";
 
 //* ERROR TYPES*\\
-    export type GetAsyncResultError                  = "ROBLOX_SERVICE_ERROR" | "UNKNOWN";
-    export type SetAsyncResultError                  = "ROBLOX_SERVICE_ERROR" | "UNKNOWN";
-    export type UpdateAsyncResultError               = "ROBLOX_SERVICE_ERROR" | "UNKNOWN";
+    export type GetAsyncResultError                  = "DATASTORE_READ_BUDGET_RAN_OUT"  | "ROBLOX_SERVICE_ERROR" | "UNKNOWN";
+    export type SetAsyncResultError                  = "DATASTORE_WRITE_BUDGET_RAN_OUT" | "ROBLOX_SERVICE_ERROR" | "UNKNOWN";
+    export type UpdateAsyncResultError               = "DATASTORE_UPDATE_BUDGET_RAN_OUT" |"ROBLOX_SERVICE_ERROR" | "UNKNOWN";
     export type RemoveAsyncResultError               = "ROBLOX_SERVICE_ERROR" | "UNKNOWN";
+    
     export type CheckForDataStorabilityResultError   = "THREAD_FIELD_NOT_STORABLE"                            | "USERDATA_FIELD_NOT_STORABLE"                            | "METATABLE_OR_CLASSES_FIELD_NOT_STORABLE"
                                                      | "MIXED_TABLE_FIELD_NOT_STORABLE"                       | "NON_STRING_OR_NON_NUMERIC_TABLE_FIELD_NOT_STORABLE"     | "INVALID_UTF8_STRING_FIELD_NOT_STORABLE"
                                                      | "NON-SEQUENTIAL_NUMERIC_TABLE_FIELD_NOT_STORABLE"      | "CYCLIC_TABLE_FIELD_NOT_STORABLE"                        | "NAN_FIELD_NOT_STORABLE"
@@ -53,14 +55,17 @@ export class RblxDataStoreUtility {
      * @param fieldName - The name of the field being checked (used for error reporting).
      * @returns Ok<void> if storable, Err<[CheckForDataStorabilityResultError, string]> if not.
      */
-    public checkForDataStorability(data: unknown, visited: Set<unknown>, fieldName?: string): Result<void, [CheckForDataStorabilityResultError, string]> {
+    public checkForDataStorability(data: unknown, visited?: Set<unknown>, fieldName?: string): Result<void, [CheckForDataStorabilityResultError, string]> {
         // A helper function to create a new Err object based on an error type and a field name. 
         function getDataStorabilityError(errorType: CheckForDataStorabilityResultError, errorFieldName: string): Err<void, [CheckForDataStorabilityResultError, string]> {
             return new Err([errorType, errorFieldName]);
         }
     
-        // By default, check the entire data for storability if fieldName is left undefined.
+        // By default, set fieldName to the root if fieldName is left undefined.
         if (!fieldName) fieldName = "Data";
+
+        // Initalize the visited set
+        if (!visited) visited = new Set();
 
         // Checking agains the data for a type issue.
         if (data !== data)                return getDataStorabilityError("NAN_FIELD_NOT_STORABLE", fieldName);
@@ -131,6 +136,18 @@ export class RblxDataStoreUtility {
         return new Ok(undefined);
     }
 
+    public getDataStoreReadBudget() {
+        return DataStoreService.GetRequestBudgetForRequestType(Enum.DataStoreRequestType.GetAsync);
+    }
+
+    public getDataStoreWriteBudget() {
+        return DataStoreService.GetRequestBudgetForRequestType(Enum.DataStoreRequestType.SetIncrementAsync);
+    }
+
+    public getDataStoreUpdateBudget() {
+        return DataStoreService.GetRequestBudgetForRequestType(Enum.DataStoreRequestType.UpdateAsync);
+    }
+
     public getAsync(key: string): Result<[unknown, DataStoreKeyInfo], GetAsyncResultError> {
         return retry<[unknown, DataStoreKeyInfo], GetAsyncResultError>(
             GET_ASYNC_RETRY_ATTEMPTS, 
@@ -151,7 +168,30 @@ export class RblxDataStoreUtility {
 
     // public setAsync(key: string, value: unknown): Result<unknown, SetAsyncResultError> { /* empty */ }
 
-    // public updateAsync(key: string): Result<unknown, UpdateAsyncResultError> { /* empty */ }
+    public updateAsync(key: string, transform: (dataToTransform: unknown) => Result<unknown, unknown>): Result<[unknown, DataStoreKeyInfo], UpdateAsyncResultError> {
+        const result = retry<[unknown, DataStoreKeyInfo], UpdateAsyncResultError>(3, 2, 1.5, (cancel) => {
+            const dataStoreUpdateBudget = this.getDataStoreUpdateBudget();
+
+            if (dataStoreUpdateBudget <= 0) {
+                cancel(new Err("DATASTORE_UPDATE_BUDGET_RAN_OUT"));
+            }
+
+            const [updateAsyncResult, dataStoreKeyInfo] = this._dataStore.UpdateAsync(key, (data) => {
+                // Invoke the transform function and return the result.
+                const transformationResult = transform(data);
+                
+                // If the result is not successful, return the same data, keeping it unchanged.
+                // This enforces atomicity.
+                if (transformationResult.isErr()) return $tuple(data);
+
+                return $tuple(transformationResult.value);
+            });
+
+            return new Ok([updateAsyncResult, dataStoreKeyInfo]);
+        });
+
+        return result;
+    }
 
     // public removeAsync(key: string): Result<unknown, RemoveAsyncResultError> { /* empty */ }
 }

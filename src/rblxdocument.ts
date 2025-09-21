@@ -15,9 +15,10 @@ import { RblxDocumentStoreConfiguration } from "./utils/rblxdocumentstore-config
 import { RblxDataStoreUtility } from "./utils/rblxdatastore-utility";
 import { RblxLogger } from "./utils/rblxlogger";
 import { Err, Ok, Result } from "./utils/result";
+import { RblxDocumentSession } from "./utils/rblxdocument-session";
 
 //* ERROR TYPES
-    export type OpenRblxDocumentResultError     = "DOCUMENT_ALREADY_OPEN" | "SESSION_LOCKED" | "ROBLOX_SERVICE_ERROR" | "SCHEMA_VALIDATION_ERROR" | "UNKNOWN";
+    export type OpenRblxDocumentResultError     = "DOCUMENT_ALREADY_OPEN" | "DOCUMENT_CLOSE_PENDING" | "SESSION_LOCKED" | "ROBLOX_SERVICE_ERROR" | "SCHEMA_VALIDATION_ERROR" | "" | "MIGRATIONS_ERROR" | "UNKNOWN";
     export type CloseRblxDocumentResultError    = "DOCUMENT_ALREADY_CLOSED" | "SESSION_LOCKED" | "ROBLOX_SERVICE_ERROR" | "UNKNOWN";
     export type GetCacheRblxDocumentResultError = "DOCUMENT_IS_CLOSED" | "SESSION_LOCKED" | "ROBLOX_SERVICE_ERROR" | "SCHEMA_VALIDATION_ERROR" | "UNKNOWN";
     export type SetCacheRblxDocumentResultError = "DOCUMENT_IS_CLOSED" | "SESSION_LOCKED" | "ROBLOX_SERVICE_ERROR" | "SCHEMA_VALIDATION_ERROR" | "UNKNOWN";
@@ -52,6 +53,8 @@ export class RblxDocument<DataSchema> {
         private _rblxDocumentStatus               : RblxDocumentStatus;
         private _rblxDocumentCache?               : DataSchema;
         private _rblxDocumentStoreConfiguration   : RblxDocumentStoreConfiguration;
+        private _rblxDocumentSession?             : RblxDocumentSession;
+        private _lockStolen                       : boolean;
     //
 
     constructor(rblxDocumentProps: RblxDocumentProps<DataSchema>) {
@@ -63,6 +66,15 @@ export class RblxDocument<DataSchema> {
         this._migrations                         = rblxDocumentProps.migrations;
         this._rblxDocumentStatus                 = "CLOSED";
         this._rblxDocumentStoreConfiguration     = rblxDocumentProps.rblxDocumentStoreConfiguration;
+        this._lockStolen                         = false;
+
+        // Create a new session object to assign if the RblxDocumentStore configuration allows locked sessions.
+        if (rblxDocumentProps.rblxDocumentStoreConfiguration.sessionsLocked) {
+            this._rblxDocumentSession = new RblxDocumentSession({
+                isLocked: false,
+                sessionId: undefined
+            });
+        }
 
         // Invoke the main method.
         this._main();
@@ -72,9 +84,9 @@ export class RblxDocument<DataSchema> {
 
     //* OPEN & CLOSE METHODS *\\
         public open(): Result<DataSchema, OpenRblxDocumentResultError> {
-            if (this._rblxDocumentStatus === "OPENED") {
-                RblxLogger.logError("The document is already open.");
-            }
+            if (this._rblxDocumentStatus === "OPENED")   return new Err("DOCUMENT_ALREADY_OPEN");
+            if (this._rblxDocumentStatus === "CLOSING")  return new Err("DOCUMENT_CLOSE_PENDING");
+
 
             return new Err("UNKNOWN");
         }
@@ -104,6 +116,8 @@ export class RblxDocument<DataSchema> {
         }
 
         public steal(): Result<void, StealRblxDocumentResultError> {
+            if (this._rblxDocumentStatus === "CLOSING") return new Err("DOCUMENT_CLOSE_PENDING");
+
             return new Ok(undefined);
         }
 

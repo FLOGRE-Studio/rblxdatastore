@@ -87,7 +87,7 @@ export default defineConfig([
             "no-throw-literal": "error",
             "no-undef": "off",
             "no-unexpected-multiline": "error",
-            "no-unmodified-loop-condition": "error",
+            "no-unmodified-loop-condition": "off",
             "no-unneeded-ternary": "error",
             "no-unreachable": "error",
             "no-unreachable-loop": "error",
