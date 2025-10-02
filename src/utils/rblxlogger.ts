@@ -1,24 +1,37 @@
+/* eslint-disable prefer-const */
+/**
+ * @INFO
+ * Organization : FLOGRE Studio
+ * Author       : Mubinet
+
+ * @CONTACT
+ * Email        : mubinet.workspace@gmail.com
+ * 
+ * @LICENSE
+ * MIT License - Copyright (c) 2025 FLOGRE Studio
+*/
+
+/** @internal */
 export namespace RblxLogger {
-    const LIBRARY_NAME   : string = "RblxDataStore";
-    const isDebugEnabled    : boolean = false;
+    const LIBRARY_NAME          : string    = "RblxDataStore";
+    export let isDebugEnabled   : boolean   = false;
 
     export const debug = {
         logInfo: (...message: string[]) => {
-            if (!isDebugEnabled) {return;}
-            print(`[DEBUG] ${LIBRARY_NAME} - [INFO] ${message} - ${os.date("%X", os.time())}`);
+            if (!isDebugEnabled) return;
+            print(`[DEBUG] [INFO] ${LIBRARY_NAME} || ${message.join()}|| ${os.date("%X", os.time())}`);
         }
     }
 
     export function logInfo(...message: string[]) {
-        print(`${LIBRARY_NAME} - [INFO] ${message} - ${os.date("%X", os.time())}`);
+        print(`[INFO] ${LIBRARY_NAME} || ${message.join()} || ${os.date("%X", os.time())}`);
     }
 
     export function logError(...message: string[]) {
-        error(`${LIBRARY_NAME} - [ERR] ${message} - ${os.date("%X", os.time())}`, 2);
+        error(`[INFO] ${LIBRARY_NAME} || ${message.join()} || ${os.date("%X", os.time())}`);
     }
 
     export function logWarn(...message: string[]) {
-        warn(`${LIBRARY_NAME} - [WARN] ${message} - ${os.date("%X", os.time())}`);
+        warn(`[INFO] ${LIBRARY_NAME} || ${message.join()} || ${os.date("%X", os.time())}`);
     }
-
 }

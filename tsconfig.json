@@ -20,6 +20,7 @@
 		// configurable
 		"rootDir": "src",
 		"outDir": "out",
+        "stripInternal": true,
 		"incremental": true,
 		"tsBuildInfoFile": "out/tsconfig.tsbuildinfo",
 		"declaration": true

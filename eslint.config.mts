@@ -59,7 +59,7 @@ export default defineConfig([
             "no-invalid-regexp": "error",
             "no-irregular-whitespace": "error",
             "no-labels": "error",
-            "no-lone-blocks": "error",
+            "no-lone-blocks": "off",
             "no-loop-func": "error",
             "no-loss-of-precision": "error",
             "no-misleading-character-class": "error",
@@ -77,7 +77,7 @@ export default defineConfig([
             "no-return-assign": ["error", "always"],
             "no-script-url": "error",
             "no-self-assign": "error",
-            "no-self-compare": "error",
+            "no-self-compare": "off",
             "no-sequences": "error",
             "no-setter-return": "error",
             "no-shadow": "error",
@@ -87,7 +87,7 @@ export default defineConfig([
             "no-throw-literal": "error",
             "no-undef": "off",
             "no-unexpected-multiline": "error",
-            "no-unmodified-loop-condition": "error",
+            "no-unmodified-loop-condition": "off",
             "no-unneeded-ternary": "error",
             "no-unreachable": "error",
             "no-unreachable-loop": "error",
@@ -97,6 +97,7 @@ export default defineConfig([
             "no-unsafe-optional-chaining": "error",
             "no-unused-labels": "error",
             "no-unused-vars": "off",
+            "@typescript-eslint/no-unused-vars": "warn",
             "no-use-before-define": "error",
             "no-useless-backreference": "error",
             "no-useless-call": "error",
@@ -125,7 +126,7 @@ export default defineConfig([
             "valid-typeof": ["error", { "requireStringLiterals": true }],
 
             /* Imports / ES Modules */
-            "no-restricted-imports": ["error", { "patterns": ["../*"] }],
+            // "no-restricted-imports": ["error", { "patterns": ["../*"] }],
             "@typescript-eslint/no-require-imports": "error",
 
             /* Style/Consistency (optional strictness) */

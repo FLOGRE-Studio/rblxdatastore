@@ -11,7 +11,7 @@
   "author": "FLOGRE Studio",
   "license": "MIT",
   "description": "",
-  "types": "out/index.d.ts",
+  "types": "out/main.d.ts",
   "files": [
     "out",
     "!**/*.tsbuildinfo"
@@ -32,5 +32,8 @@
     "roblox-ts": "^3.0.0",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.44.0"
+  },
+  "dependencies": {
+    "@rbxts/services": "^1.5.5"
   }
 }
