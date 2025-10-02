@@ -11,16 +11,16 @@
 */
 
 interface RblxDocumentStoreConfigurationProps {
-    readonly sessionsLocked: boolean;
     readonly bindToClose: boolean;
+    readonly debug: boolean;
 }
 
 export class RblxDocumentStoreConfiguration {
-    public readonly sessionsLocked: boolean;
     public readonly bindToClose: boolean;
+    public readonly debug?: boolean;
 
     constructor(props: RblxDocumentStoreConfigurationProps) {
-        this.sessionsLocked  = props.sessionsLocked;
         this.bindToClose     = props.bindToClose;
+        this.debug           = props.debug;
     }
 }

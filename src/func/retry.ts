@@ -26,32 +26,35 @@ import { Err, Result } from "../utils/result";
  * @param args - Arguments to pass to the function.
  * @returns Result<SuccessfulResult, unknown> - Ok on success, Err on failure after all attempts.
  */
-export function retry<OkType, ErrType, Args extends unknown[] = unknown[]>(
+export function retry<OkType, ErrType, cancelOkType = OkType, cancelErrorType = ErrType, Args extends unknown[] = unknown[]>(
     maxAttempts               : number,
     initialDelayTime          : number,
     exponentialBackoffFactor  : number,
-    func                      : (cancelRetry: (err: Err<OkType, ErrType>) => void, ...args: Args) => Result<OkType, ErrType>,
+    func                      : (cancelRetry: (err: Err<cancelOkType, cancelErrorType>) => Err<cancelOkType, cancelErrorType>, ...args: Args) => Result<OkType, ErrType>,
     ...args: Args
 ): Result<OkType, ErrType> {
     // Cancel the retry function when the value is set true.
-    let cancelError      : Err<OkType, ErrType> | undefined    = undefined;
-    const onCancel       : (err: Err<OkType, ErrType>) => void = ((err) => { cancelError = err });
+    let cancelError      : Err<cancelOkType, cancelErrorType> | undefined    = undefined;
+    const onCancel       : (err: Err<cancelOkType, cancelErrorType>) => Err<cancelOkType, cancelErrorType> = ((err) => {
+        cancelError = err; return err;
+    });
 
     // Tracks the current attempt number.
-    let currentAttempt   : number = 0;
+    let currentAttempt   : number = 1;
 
     // Get the first result.
     let result           : Result<OkType, ErrType> = func(onCancel, ...args);
 
     // Repeat retrying until all attempts are exhausted.
-    while (cancelError === undefined && result.isErr() && currentAttempt < maxAttempts) {
-        currentAttempt++;
-
+    while (cancelError === undefined && result.isErr() && currentAttempt <= maxAttempts) {
         // Call the function with provided arguments.
         result = func(onCancel, ...args);
 
         // If successful, return the result.
         if (result.isOk()) return result;
+        if (cancelError) {
+            return cancelError;
+        }
 
         // Calculate delay time and add a jitter.
         const delayTime     : number      = initialDelayTime * exponentialBackoffFactor ** currentAttempt;
@@ -59,11 +62,9 @@ export function retry<OkType, ErrType, Args extends unknown[] = unknown[]>(
 
         // Yield the thread for the time.
         task.wait(delayTime + jitterTime);
-    }
 
-    // If the retry function is cancelled, return the cancellation error. 
-    if (cancelError) {
-        return cancelError;
+        // Increase the attempt.
+        currentAttempt++;
     }
 
     // If all attempts fail, return an unsuccessful result.
