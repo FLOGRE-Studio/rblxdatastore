@@ -34,6 +34,7 @@ import { RblxDocumentSession } from "./rblxdocument-session";
     export type GetLockSessionIdResultError          = "ROBLOX_SERVICE_ERROR";
     export type TryLockingResultError                = "ROBLOX_SERVICE_ERROR" | "SESSION_LOCKED";
     export type TryUnlockingResultError              = "ROBLOX_SERVICE_ERROR" | "LOCK_NOT_OWNED";
+    export type RenewLockResultError                 = "ROBLOX_SERVICE_ERROR" | "LOCK_NOT_OWNED";
 
 //
 
@@ -47,7 +48,7 @@ export class RblxDataStoreUtility {
     //* FIELDS *\\
         private _dataStore                                                : DataStore;
         private _MEMORY_STORE_RBLX_DOCUMENTS_LOCK_SESSIONS_COLLECTION_KEY : string = "rblxDocumentsLockSessions";
-        private _MEMORY_STORE_RBLX_DOCUMENT_LOCK_SESSION_EXPIRATION_TIME  : number = 10 * 60; //* 10 minutes.
+        private _MEMORY_STORE_RBLX_DOCUMENT_LOCK_SESSION_EXPIRATION_TIME  : number = 90;
     //
 
     constructor(
@@ -386,22 +387,39 @@ export class RblxDataStoreUtility {
      * @returns Ok<void> on success, Err<TryUnlockingResultError> on failure or if not owned.
      */
     public tryUnlocking(key: string, lockSessionInfo?: RblxDocumentSession, steal?: boolean): Result<void, TryUnlockingResultError> {
+        RblxLogger.debug.logInfo(`[tryUnlocking] Attempting to try unlocking the session for the document ("${key}")...`);
+        
         // If no session info and not stealing, cannot unlock.
         if (!lockSessionInfo && !steal) return new Err("LOCK_NOT_OWNED");
 
         // If not stealing, verify ownership of the lock.
         if (!steal) {
+            RblxLogger.debug.logInfo(`[tryUnlocking] Verifying the ownership of the lock before unlocking the session for the document ("${key}")...`);
             const getLockSessionIdResult = this.getlockSessionId(key);
-            if (getLockSessionIdResult.isErr()) return new Err("ROBLOX_SERVICE_ERROR");
-            if (lockSessionInfo !== undefined && getLockSessionIdResult.value && lockSessionInfo.sessionId !== getLockSessionIdResult.value) return new Err("LOCK_NOT_OWNED");
+            if (getLockSessionIdResult.isErr()) {
+                RblxLogger.debug.logInfo(`[tryUnlocking] Failed to verify the ownership of the lock for the document ("${key}") due to the Roblox service error`);
+                return new Err("ROBLOX_SERVICE_ERROR");
+            }
+
+            if (lockSessionInfo !== undefined && getLockSessionIdResult.value && lockSessionInfo.sessionId !== getLockSessionIdResult.value) {
+                RblxLogger.debug.logInfo(`[tryUnlocking] Cannot unlock the session for the document ("${key}") because the session is locked by other server`);
+                return new Err("LOCK_NOT_OWNED");
+            }
+
+            RblxLogger.debug.logInfo(`[tryUnlocking] Successfully verified the ownership of the lock, will proceed to unlock the session for the document ("${key}")`);
         }
 
         // Get the lock sessions hash map from MemoryStore.
         const memoryStoreRblxDocumentLockSessionKey = `${key}-lockSession`;
         const getRblxDocumentsLockSessionsHashMapResult = retry<MemoryStoreHashMap, "ROBLOX_SERVICE_ERROR">(3, 2, 1.1, () => {
+            RblxLogger.debug.logInfo(`[tryUnlocking] Fetching the hash map instance containing the collection of sessions from the MemoryStore for the document ("${key}")...`);
             const luauResult = pcall(() => MemoryStoreService.GetHashMap(this._MEMORY_STORE_RBLX_DOCUMENTS_LOCK_SESSIONS_COLLECTION_KEY));
-            if (!luauResult) return new Err("ROBLOX_SERVICE_ERROR");
+            if (!luauResult) {
+                RblxLogger.debug.logInfo(`[tryUnlocking] Failed to fetch the hash map instance from the MemoryStore for the document ("${key}")...`);
+                return new Err("ROBLOX_SERVICE_ERROR");
+            }
 
+            RblxLogger.debug.logInfo(`[tryUnlocking] Successfully fetched the hash map instance from the MemoryStore for the document ("${key}")...`);
             return new Ok(luauResult[1] as MemoryStoreHashMap);
         });
 
@@ -409,13 +427,76 @@ export class RblxDataStoreUtility {
 
         // Remove the lock session ID from the hash map.
         const setRblxDocumentLockSessionHashMapResult = retry<void, "ROBLOX_SERVICE_ERROR">(3, 2, 1.1, () => {
+            RblxLogger.debug.logInfo(`[tryUnlocking] Attempting to remove the session ID from the MemoryStore for the document ("${key}")...`);
             const luauResult = pcall(() => getRblxDocumentsLockSessionsHashMapResult.value.RemoveAsync(memoryStoreRblxDocumentLockSessionKey));
-            if (!luauResult) return new Err("ROBLOX_SERVICE_ERROR");
+            if (!luauResult) {
+                RblxLogger.debug.logInfo(`[tryUnlocking] Failed to remove the session ID from the MemoryStore for the document ("${key}")`);
+                return new Err("ROBLOX_SERVICE_ERROR");
+            }
 
             return new Ok(undefined);
         });
 
         if (setRblxDocumentLockSessionHashMapResult.isErr()) return new Err("ROBLOX_SERVICE_ERROR");
+
+        RblxLogger.debug.logInfo(`[tryUnlocking] Successfully unlocked the session for the document ("${key}")...`);
+
+        // Return success.
+        return new Ok(undefined);
+    }
+
+    public renewSessionLock(key: string, lockSessionInfo?: RblxDocumentSession): Result<void, RenewLockResultError> {
+        RblxLogger.debug.logInfo(`[renewLock] Attempting to renew the session for the document ("${key}")...`);
+        
+        // Cannot renew lock if the server has no session information.
+        if (!lockSessionInfo) return new Err("LOCK_NOT_OWNED");
+
+        RblxLogger.debug.logInfo(`[renewLock] Verifying the ownership of the lock before renewing the session for the document ("${key}")...`);
+        const getLockSessionIdResult = this.getlockSessionId(key);
+        if (getLockSessionIdResult.isErr()) {
+            RblxLogger.debug.logInfo(`[renewLock] Failed to verify the ownership of the lock for the document ("${key}") due to the Roblox service error`);
+            return new Err("ROBLOX_SERVICE_ERROR");
+        }
+
+        if (lockSessionInfo !== undefined && getLockSessionIdResult.value && lockSessionInfo.sessionId !== getLockSessionIdResult.value) {
+            RblxLogger.debug.logInfo(`[renewLock] Cannot renew the session for the document ("${key}") because the session is locked by other server`);
+            return new Err("LOCK_NOT_OWNED");
+        }
+
+        RblxLogger.debug.logInfo(`[renewLock] Successfully verified the ownership of the lock, will proceed to renew the session for the document ("${key}")`);
+
+        // Get the lock sessions hash map from MemoryStore.
+        const memoryStoreRblxDocumentLockSessionKey = `${key}-lockSession`;
+        const getRblxDocumentsLockSessionsHashMapResult = retry<MemoryStoreHashMap, "ROBLOX_SERVICE_ERROR">(3, 2, 1.1, () => {
+            RblxLogger.debug.logInfo(`[renewLock] Fetching the hash map instance containing the collection of sessions from the MemoryStore for the document ("${key}")...`);
+            const luauResult = pcall(() => MemoryStoreService.GetHashMap(this._MEMORY_STORE_RBLX_DOCUMENTS_LOCK_SESSIONS_COLLECTION_KEY));
+            if (!luauResult) {
+                RblxLogger.debug.logInfo(`[renewLock] Failed to fetch the hash map instance from the MemoryStore for the document ("${key}")...`);
+                return new Err("ROBLOX_SERVICE_ERROR");
+            }
+
+            RblxLogger.debug.logInfo(`[renewLock] Successfully fetched the hash map instance from the MemoryStore for the document ("${key}")...`);
+            return new Ok(luauResult[1] as MemoryStoreHashMap);
+        });
+
+        if (getRblxDocumentsLockSessionsHashMapResult.isErr()) return new Err("ROBLOX_SERVICE_ERROR");
+
+        // Renew the lock session from the hash map.
+        const setRblxDocumentLockSessionHashMapResult = retry<void, "ROBLOX_SERVICE_ERROR">(3, 2, 1.1, () => {
+            RblxLogger.debug.logInfo(`[renewLock] Attempting to update to renew the session ID from the MemoryStore for the document ("${key}")...`);
+            const luauResult = pcall(() => getRblxDocumentsLockSessionsHashMapResult.value.UpdateAsync(memoryStoreRblxDocumentLockSessionKey, (sessionId) => sessionId, this._MEMORY_STORE_RBLX_DOCUMENT_LOCK_SESSION_EXPIRATION_TIME));
+            if (!luauResult) {
+                RblxLogger.debug.logInfo(`[renewLock] Failed to renew the session the document ("${key}") due to the Roblox service error`);
+                return new Err("ROBLOX_SERVICE_ERROR");
+            }
+
+            return new Ok(undefined);
+        });
+
+        if (setRblxDocumentLockSessionHashMapResult.isErr()) return new Err("ROBLOX_SERVICE_ERROR");
+
+        RblxLogger.debug.logInfo(`[renewLock] Successfully unlocked the session for the document ("${key}")...`);
+
         // Return success.
         return new Ok(undefined);
     }
