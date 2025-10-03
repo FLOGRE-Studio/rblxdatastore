@@ -241,7 +241,7 @@ export class ConcurrentDocument<DataSchema extends object> {
          */
         public update(transformFunc: (data: DataSchema) => DataSchema): Result<DataSchema, UpdateRblxDocumentResultError> {
             // Ensure document is open before updating.
-            if (this._rblxDocumentStatus !== "OPENED") return new Err("DOCUMENT_NOT_OPEN");
+            if (this._rblxDocumentStatus === "OPENING" || this._rblxDocumentStatus === "CLOSED") return new Err("DOCUMENT_NOT_OPEN");
             RblxLogger.debug.logInfo(`Attempting to update the cache of CacheDocument with key ("${this._key}") with latest transformed data to the datastore...`);
 
             // Helper to perform update and handle schema validation.
@@ -291,7 +291,7 @@ export class ConcurrentDocument<DataSchema extends object> {
          */
         public erase(): Result<void, EraseRblxDocumentResultError> {
             // Only erase if document is closed.
-            if (this._rblxDocumentStatus === "OPENED" || this._rblxDocumentStatus === "OPENING") return new Err("DOCUMENT_MUST_BE_CLOSED");
+            if (this._rblxDocumentStatus === "OPENED" || this._rblxDocumentStatus === "CLOSING") return new Err("DOCUMENT_MUST_BE_CLOSED");
             
             // Remove the document from the DataStore.
             const removeAsyncResult = this._rblxDataStoreUtility.removeAsync(this._key);
