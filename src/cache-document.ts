@@ -74,24 +74,39 @@ export class CacheDocument<DataSchema extends object> {
     //
 
     constructor(rblxDocumentProps: CacheDocumentProps<DataSchema>) {
+        RblxLogger.debug.logInfo(`[constructor] Initializing CacheDocument for key ("${rblxDocumentProps.key}")`);
         this._dataStore                          = rblxDocumentProps.dataStore;
+        RblxLogger.debug.logInfo(`[constructor] _dataStore set for key ("${rblxDocumentProps.key}")`);
         this._rblxDataStoreUtility               = rblxDocumentProps.rblxDataStoreUtility;
+        RblxLogger.debug.logInfo(`[constructor] _rblxDataStoreUtility set for key ("${rblxDocumentProps.key}")`);
         this._key                                = rblxDocumentProps.key;
+        RblxLogger.debug.logInfo(`[constructor] _key set to "${rblxDocumentProps.key}"`);
         this._schemaValidate                     = rblxDocumentProps.schemaValidate;
+        RblxLogger.debug.logInfo(`[constructor] _schemaValidate set for key ("${rblxDocumentProps.key}")`);
         this._transformation                     = rblxDocumentProps.transformation;
+        RblxLogger.debug.logInfo(`[constructor] _transformation set for key ("${rblxDocumentProps.key}")`);
         this._defaultSchema                      = rblxDocumentProps.defaultSchema;
+        RblxLogger.debug.logInfo(`[constructor] _defaultSchema set for key ("${rblxDocumentProps.key}")`);
         this._migrations                         = rblxDocumentProps.migrations;
+        RblxLogger.debug.logInfo(`[constructor] _migrations set for key ("${rblxDocumentProps.key}")`);
         this._rblxDocumentStatus                 = "CLOSED";
+        RblxLogger.debug.logInfo(`[constructor] _rblxDocumentStatus initialized to CLOSED for key ("${rblxDocumentProps.key}")`);
         this._rblxDocumentCache                  = this._defaultSchema;
+        RblxLogger.debug.logInfo(`[constructor] _rblxDocumentCache initialized for key ("${rblxDocumentProps.key}")`);
         this._lockStolen                         = false;
+        RblxLogger.debug.logInfo(`[constructor] _lockStolen initialized to false for key ("${rblxDocumentProps.key}")`);
 
         this._onOpenEvent                        = new Instance("BindableEvent");
+        RblxLogger.debug.logInfo(`[constructor] _onOpenEvent created for key ("${rblxDocumentProps.key}")`);
         this._onCloseEvent                       = new Instance("BindableEvent");
+        RblxLogger.debug.logInfo(`[constructor] _onCloseEvent created for key ("${rblxDocumentProps.key}")`);
         this._onCacheUpdatedEvent                = new Instance("BindableEvent");
+        RblxLogger.debug.logInfo(`[constructor] _onCacheUpdatedEvent created for key ("${rblxDocumentProps.key}")`);
 
         this.onOpen                              = this._onOpenEvent.Event;
         this.onClose                             = this._onCloseEvent.Event;
         this.onCacheUpdated                      = this._onCacheUpdatedEvent.Event;
+        RblxLogger.debug.logInfo(`[constructor] RBXScriptSignals initialized for key ("${rblxDocumentProps.key}")`);
     }
 
     //* OPEN & CLOSE METHODS *\\
@@ -102,7 +117,7 @@ export class CacheDocument<DataSchema extends object> {
          * @returns Ok<RblxStoreDataDocumentFormat<DataSchema>> on success, Err<OpenRblxDocumentResultError> on failure.
         */
         public open(): Result<RblxStoreDataDocumentFormat<DataSchema>, OpenRblxDocumentResultError> {
-            RblxLogger.debug.logInfo(`Attempting to open the cache document with key ("${this._key}")...`);
+            RblxLogger.debug.logInfo(`[open] Attempting to open the cache document with key ("${this._key}")...`);
 
             // Take the key of the document. 
             const dataKey = this._key;
@@ -124,13 +139,19 @@ export class CacheDocument<DataSchema extends object> {
                 * Return an error if the document is already opened, indicating it was unnecessary to re-open it.
                 * Ensure you cache any successfully opened documents in memory to use for any data operations.
             */
-            if (this._rblxDocumentStatus === "OPENED")   return new Err("DOCUMENT_ALREADY_OPEN");
+            if (this._rblxDocumentStatus === "OPENED") {
+                RblxLogger.debug.logInfo(`[open] Document already opened for key ("${this._key}")`);
+                return new Err("DOCUMENT_ALREADY_OPEN");
+            }
 
             /**
                 * Return an error if the closure of the document is pending.
                 * You must wait until the document is closed in order to open the document.
             */
-            if (this._rblxDocumentStatus === "CLOSING")  return new Err("DOCUMENT_CLOSE_PENDING");
+            if (this._rblxDocumentStatus === "CLOSING") {
+                RblxLogger.debug.logInfo(`[open] Document close pending for key ("${this._key}")`);
+                return new Err("DOCUMENT_CLOSE_PENDING");
+            }
 
             // Set document status
             this._rblxDocumentStatus = "OPENING";
@@ -172,17 +193,21 @@ export class CacheDocument<DataSchema extends object> {
                 
                 // eslint-disable-next-line prefer-const
                 for (let [targetVersion, migration] of ipairs(this._migrations)) {
+                    RblxLogger.debug.logInfo(`[open:transformFunc] Checking migration for targetVersion ${targetVersion} for key ("${this._key}")`);
                     // The previous version that migration will migrate data FROM.
                     const fromVersion = (targetVersion - 1);
-                    
+                    RblxLogger.debug.logInfo(`[open:transformFunc] fromVersion set to ${fromVersion} for key ("${this._key}")`);
                     // Run the migration ONLY when the version of the old data MATCH the previous version that migration is migrating FROM.
                     if (rblxDocumentSchemaVersion === fromVersion) {
+                        RblxLogger.debug.logInfo(`[open:transformFunc] Running migration for targetVersion ${targetVersion} for key ("${this._key}")`);
                         const migrationResult = migration.migrate(rblxDocumentData);
                         if (migrationResult.isErr()) {
+                            RblxLogger.debug.logInfo(`[open:transformFunc] Migration failed for targetVersion ${targetVersion} for key ("${this._key}")`);
                             return cancel(new Err("MIGRATIONS_ERROR"));
                         }
 
                         rblxDocumentData          = migrationResult.value;
+                        RblxLogger.debug.logInfo(`[open:transformFunc] Migration succeeded for targetVersion ${targetVersion} for key ("${this._key}")`);
                         rblxDocumentSchemaVersion = targetVersion;
                     }
                 }
@@ -197,8 +222,10 @@ export class CacheDocument<DataSchema extends object> {
                 
                 let minimalSupportedVersion: number = rblxDataStoreDocument?.minimalSupportedVersion || 0;
                 for (let newestMigration = this._migrations.size(); newestMigration > 0; newestMigration--) {
+                    RblxLogger.debug.logInfo(`[open:transformFunc] Checking backwards compatibility for migration ${newestMigration} for key ("${this._key}")`);
                     const migration = this._migrations[newestMigration - 1];
                     if (!migration.backwardsCompatible) {
+                        RblxLogger.debug.logInfo(`[open:transformFunc] Migration ${newestMigration} is not backwards compatible for key ("${this._key}")`);
                         minimalSupportedVersion = newestMigration;
                         break;
                     }
@@ -217,18 +244,27 @@ export class CacheDocument<DataSchema extends object> {
             }
             
             if (!this._rblxDocumentSession || !this._rblxDocumentSession.sessionId) {
+                RblxLogger.debug.logInfo(`[open] No session or sessionId found for key ("${this._key}")`);
                 const lockResult = retry<string, "SESSION_LOCKED" | "ROBLOX_SERVICE_ERROR">(5, 2, 1.1, () => {
+                    RblxLogger.debug.logInfo(`[open] Attempting to lock document session for key ("${this._key}")`);
                     const lockRblxDocumentSessionResult = this._rblxDataStoreUtility.tryLocking(dataKey);
-                    if (lockRblxDocumentSessionResult.isErr()) return new Err(lockRblxDocumentSessionResult.errorType);
-
+                    if (lockRblxDocumentSessionResult.isErr()) {
+                        RblxLogger.debug.logInfo(`[open] Locking failed for key ("${this._key}") with error: ${lockRblxDocumentSessionResult.errorType}`);
+                        return new Err(lockRblxDocumentSessionResult.errorType);
+                    }
+                    RblxLogger.debug.logInfo(`[open] Locking succeeded for key ("${this._key}")`);
                     return new Ok(lockRblxDocumentSessionResult.value);
                 });
 
-                if (lockResult.isErr()) return new Err(lockResult.errorType);
+                if (lockResult.isErr()) {
+                    RblxLogger.debug.logInfo(`[open] LockResult failed for key ("${this._key}") with error: ${lockResult.errorType}`);
+                    return new Err(lockResult.errorType);
+                }
                 
                 this._rblxDocumentSession = new RblxDocumentSession({
                     sessionId: lockResult.value
                 });
+                RblxLogger.debug.logInfo(`[open] Session created for key ("${this._key}") with sessionId: ${lockResult.value}`);
             } 
 
             const updateAsyncResult = this._rblxDataStoreUtility.updateAsync<RblxStoreDataDocumentFormat<DataSchema>, OpenRblxDocumentResultError>(dataKey, transformFunc);
@@ -247,18 +283,27 @@ export class CacheDocument<DataSchema extends object> {
             }
 
             this._rblxDocumentStatus = "OPENED";
+            RblxLogger.debug.logInfo(`[open] Document status set to OPENED for key ("${this._key}")`);
 
             this._autoSaveThread = task.defer(() => {
+                RblxLogger.debug.logInfo(`[open:autoSaveThread] Auto-save thread started for key ("${this._key}")`);
                 while (this._rblxDocumentStatus === "OPENED" && task.wait(this.AUTO_SAVE_INTERVAL)) {
-                    if (this._rblxDocumentStatus !== "OPENED") return;
+                    RblxLogger.debug.logInfo(`[open:autoSaveThread] Auto-save tick for key ("${this._key}")`);
+                    if (this._rblxDocumentStatus !== "OPENED") {
+                        RblxLogger.debug.logInfo(`[open:autoSaveThread] Document status not OPENED, exiting auto-save for key ("${this._key}")`);
+                        return;
+                    }
                     const saveResult = this.save();
                     if (saveResult.isErr()) {
                         RblxLogger.logWarn(`RblxDataStore Auto-Save feature for the CacheDocument (${this._key}) has failed. Error code: ${saveResult.errorType}`)
+                    } else {
+                        RblxLogger.debug.logInfo(`[open:autoSaveThread] Auto-save succeeded for key ("${this._key}")`);
                     }
                 }
+                RblxLogger.debug.logInfo(`[open:autoSaveThread] Auto-save thread ended for key ("${this._key}")`);
             });
 
-            RblxLogger.debug.logInfo(`Successfully opened the cache document with key ("${this._key}").`);
+            RblxLogger.debug.logInfo(`[open] Successfully opened the cache document with key ("${this._key}").`);
 
             const okResult = new Ok(updateAsyncResult.value[0]!);
             this._onOpenEvent.Fire(new Ok(undefined));
@@ -271,11 +316,16 @@ export class CacheDocument<DataSchema extends object> {
          * @returns Ok<void> on success, Err<CloseRblxDocumentResultError> on failure.
         */
         public close(): Result<void, CloseRblxDocumentResultError> {
-            RblxLogger.debug.logInfo(`Attempting to close the cache document with key ("${this._key}")...`);
+            RblxLogger.debug.logInfo(`[close] Attempting to close the cache document with key ("${this._key}")...`);
 
             const tryClosing: () => Result<void, CloseRblxDocumentResultError> = () => {
-                if (this._rblxDocumentStatus === "CLOSED") return new Err("DOCUMENT_ALREADY_CLOSED");
+                if (this._rblxDocumentStatus === "CLOSED") {
+                    RblxLogger.debug.logInfo(`[close] Document already closed for key ("${this._key}")`);
+                    return new Err("DOCUMENT_ALREADY_CLOSED");
+                }
+
                 this._rblxDocumentStatus = "CLOSING";
+                RblxLogger.debug.logInfo(`[close] Document status set to CLOSING for key ("${this._key}")`);
 
                 const saveResult = this.save();
                 if (saveResult.isErr()) {
@@ -290,7 +340,6 @@ export class CacheDocument<DataSchema extends object> {
                     return new Err("ROBLOX_SERVICE_ERROR");
                 }
 
-                RblxLogger.debug.logInfo(`Successfully closed the cache document with key ("${this._key}").`);
                 if (this._autoSaveThread) task.cancel(this._autoSaveThread);
 
                 this._rblxDocumentSession = undefined;
@@ -305,6 +354,7 @@ export class CacheDocument<DataSchema extends object> {
                 return result;
             }
 
+            RblxLogger.debug.logInfo(`[close] Successfully closed the cache document with key ("${this._key}").`);
             this._onCloseEvent.Fire(new Ok(undefined));
             return result;
         }
@@ -316,7 +366,14 @@ export class CacheDocument<DataSchema extends object> {
          * @returns Ok<DataSchema> with cached data.
          */
         public getCache(): Result<DataSchema, GetCacheRblxDocumentResultError> {
-            if (this._rblxDocumentStatus !== "OPENED") return new Err("DOCUMENT_NOT_OPEN");
+            RblxLogger.debug.logInfo(`[getCache] Getting cache for key ("${this._key}")`);
+            if (this._rblxDocumentStatus !== "OPENED") {
+                RblxLogger.debug.logInfo(`[getCache] Document not open for key ("${this._key}")`);
+                RblxLogger.debug.logInfo(`[getCache] Returning error DOCUMENT_NOT_OPEN for key ("${this._key}")`);
+                return new Err("DOCUMENT_NOT_OPEN");
+            }
+            RblxLogger.debug.logInfo(`[getCache] Successfully returned cache for key ("${this._key}")`);
+            RblxLogger.debug.logInfo(`[getCache] Returning Ok for key ("${this._key}")`);
             return new Ok(this._rblxDocumentCache);
         }
 
@@ -326,12 +383,20 @@ export class CacheDocument<DataSchema extends object> {
          * @returns Ok<DataSchema> with updated cache.
          */
         public setCache(newRblxDocumentSchemaCache: DataSchema): Result<DataSchema, SetCacheRblxDocumentResultError> {
-            if (this._rblxDocumentStatus !== "OPENED") return new Err("DOCUMENT_NOT_OPEN");
+            RblxLogger.debug.logInfo(`[setCache] Setting cache for key ("${this._key}")`);
+            if (this._rblxDocumentStatus !== "OPENED") {
+                RblxLogger.debug.logInfo(`[setCache] Document not open for key ("${this._key}")`);
+                RblxLogger.debug.logInfo(`[setCache] Returning error DOCUMENT_NOT_OPEN for key ("${this._key}")`);
+                return new Err("DOCUMENT_NOT_OPEN");
+            }
 
             const copiedCache = deepCopyObject(newRblxDocumentSchemaCache);
             this._rblxDocumentCache = deepFreezeObject(copiedCache);
+            RblxLogger.debug.logInfo(`[setCache] Cache set and frozen for key ("${this._key}")`);
 
             this._onCacheUpdatedEvent.Fire();
+            RblxLogger.debug.logInfo(`[setCache] Cache updated event fired for key ("${this._key}")`);
+            RblxLogger.debug.logInfo(`[setCache] Returning Ok for key ("${this._key}")`);
             return new Ok(this._rblxDocumentCache);
         }
     //
@@ -344,8 +409,11 @@ export class CacheDocument<DataSchema extends object> {
          * @returns Ok<DataSchema> with updated data, Err<UpdateRblxDocumentResultError> on failure.
          */
         public update(transformFunc: (data: DataSchema) => DataSchema): Result<DataSchema, UpdateRblxDocumentResultError> {
-            if (this._rblxDocumentStatus === "CLOSED") return new Err("DOCUMENT_NOT_OPEN");
-            RblxLogger.debug.logInfo(`Attempting to update the cache of CacheDocument with key ("${this._key}") with latest transformed data to the datastore...`);
+            RblxLogger.debug.logInfo(`[update] Attempting to update the cache of CacheDocument with key ("${this._key}") with latest transformed data to the datastore...`);
+            if (this._rblxDocumentStatus === "CLOSED") {
+                RblxLogger.debug.logInfo(`[update] Document not open for key ("${this._key}")`);
+                return new Err("DOCUMENT_NOT_OPEN");
+            }
 
             // Helper to perform update and handle schema validation.
             const tryUpdating = (transformedData: DataSchema): Result<DataSchema, UpdateRblxDocumentResultError> => {
@@ -379,18 +447,26 @@ export class CacheDocument<DataSchema extends object> {
             const getSessionIdResult = this._rblxDataStoreUtility.getlockSessionId(this._key);
             if (getSessionIdResult.isErr()) return new Err("ROBLOX_SERVICE_ERROR");
             if (getSessionIdResult.value && (!this._rblxDocumentSession || this._rblxDocumentSession.sessionId !== getSessionIdResult.value)) {
+                RblxLogger.debug.logInfo(`[update] Session locked for key ("${this._key}")`);
+                RblxLogger.debug.logInfo(`[update] Returning error SESSION_LOCKED for key ("${this._key}")`);
                 return new Err("SESSION_LOCKED");
             }
 
             // Transform the cached data.
             const transformedData = transformFunc(this._rblxDocumentCache);
             this._rblxDocumentCache = deepFreezeObject(deepCopyObject(transformedData));
+            RblxLogger.debug.logInfo(`[update] Cache transformed and frozen for key ("${this._key}")`);
 
             // Perform the update operation.
             const updateResult = tryUpdating(transformedData);
-            if (updateResult.isErr()) return new Err(updateResult.errorType);
+            if (updateResult.isErr()) {
+                RblxLogger.debug.logInfo(`[update] Update failed for key ("${this._key}") with error: ${updateResult.errorType}`);
+                RblxLogger.debug.logInfo(`[update] Returning error ${updateResult.errorType} for key ("${this._key}")`);
+                return new Err(updateResult.errorType);
+            }
 
-            RblxLogger.debug.logInfo(`Successfully updated the cache of CacheDocument with key ("${this._key}") to the datastore.`);
+            RblxLogger.debug.logInfo(`[update] Successfully updated the cache of CacheDocument with key ("${this._key}") to the datastore.`);
+            RblxLogger.debug.logInfo(`[update] Returning Ok for key ("${this._key}")`);
             return new Ok(updateResult.value)
         }
 
@@ -400,19 +476,25 @@ export class CacheDocument<DataSchema extends object> {
          * @returns Ok<DataSchema> on success, Err<SaveRblxDocumentResultError> on failure.
          */
         public save(): Result<DataSchema, SaveRblxDocumentResultError> {
-            if (this._rblxDocumentStatus === "OPENING" || this._rblxDocumentStatus === "CLOSED") return new Err("DOCUMENT_NOT_OPEN");
-            RblxLogger.debug.logInfo(`Attempting to save the current cache of CacheDocument with key ("${this._key}") to the datastore...`);
+            RblxLogger.debug.logInfo(`[save] Attempting to save the current cache of CacheDocument with key ("${this._key}") to the datastore...`);
+            if (this._rblxDocumentStatus === "OPENING" || this._rblxDocumentStatus === "CLOSED") {
+                RblxLogger.debug.logInfo(`[save] Document not open for key ("${this._key}")`);
+                return new Err("DOCUMENT_NOT_OPEN");
+            }
 
             // Save by updating with the current cache.
             const rblxDocumentUpdateResult = this.update((cache) => cache);
             if (rblxDocumentUpdateResult.isErr()) {
+                RblxLogger.debug.logInfo(`[save] Save failed for key ("${this._key}") with error: ${rblxDocumentUpdateResult.errorType}`);
+                RblxLogger.debug.logInfo(`[save] Returning error ${rblxDocumentUpdateResult.errorType} for key ("${this._key}")`);
                 if (rblxDocumentUpdateResult.errorType === "ROBLOX_SERVICE_ERROR") return new Err(rblxDocumentUpdateResult.errorType);
                 if (rblxDocumentUpdateResult.errorType === "SCHEMA_VALIDATION_ERROR") return new Err(rblxDocumentUpdateResult.errorType);
                 if (rblxDocumentUpdateResult.errorType === "SESSION_LOCKED") return new Err(rblxDocumentUpdateResult.errorType);
                 return new Err("UNKNOWN");
             }
             
-            RblxLogger.debug.logInfo(`Successfully saved the current cache of CacheDocument with key ("${this._key}") to the datastore...`);
+            RblxLogger.debug.logInfo(`[save] Successfully saved the current cache of CacheDocument with key ("${this._key}") to the datastore...`);
+            RblxLogger.debug.logInfo(`[save] Returning Ok for key ("${this._key}")`);
             return new Ok(rblxDocumentUpdateResult.value);
         }
 
@@ -421,10 +503,14 @@ export class CacheDocument<DataSchema extends object> {
          * @returns Ok<void> on success, Err<StealRblxDocumentResultError> if close is pending.
          */
         public steal(): Result<void, StealRblxDocumentResultError> {
-            if (this._rblxDocumentStatus === "CLOSING") return new Err("DOCUMENT_CLOSE_PENDING");
+            RblxLogger.debug.logInfo(`[steal] Attempting to mark cache document as stolen for key ("${this._key}")`);
+            if (this._rblxDocumentStatus === "CLOSING") {
+                RblxLogger.debug.logInfo(`[steal] Document close pending for key ("${this._key}")`);
+                return new Err("DOCUMENT_CLOSE_PENDING");
+            }
             this._lockStolen = true;
 
-            RblxLogger.debug.logInfo(`The CacheDocument with key ("${this._key}") has been marked stolen.`);
+            RblxLogger.debug.logInfo(`[steal] The CacheDocument with key ("${this._key}") has been marked stolen.`);
             return new Ok(undefined);
         }
 
@@ -434,32 +520,52 @@ export class CacheDocument<DataSchema extends object> {
          * @returns Ok<void> on success, Err<EraseRblxDocumentResultError> if not closed or on failure.
          */
         public erase(): Result<void, EraseRblxDocumentResultError> {
-            if (this._rblxDocumentStatus === "OPENED" || this._rblxDocumentStatus === "CLOSING") return new Err("DOCUMENT_MUST_BE_CLOSED");
+            RblxLogger.debug.logInfo(`[erase] Attempting to erase cache document for key ("${this._key}")`);
+            if (this._rblxDocumentStatus === "OPENED" || this._rblxDocumentStatus === "CLOSING") {
+                RblxLogger.debug.logInfo(`[erase] Document must be closed before erasing for key ("${this._key}")`);
+                return new Err("DOCUMENT_MUST_BE_CLOSED");
+            }
             
             const removeAsyncResult = this._rblxDataStoreUtility.removeAsync(this._key);
-            if (removeAsyncResult.isErr()) return new Err("ROBLOX_SERVICE_ERROR");
+            if (removeAsyncResult.isErr()) {
+                RblxLogger.debug.logInfo(`[erase] Erase failed for key ("${this._key}") with error: ${removeAsyncResult.errorType}`);
+                return new Err("ROBLOX_SERVICE_ERROR");
+            }
 
-            RblxLogger.debug.logInfo(`The CacheDocument with key ("${this._key}") has been completely erased from the datastore.`);
+            RblxLogger.debug.logInfo(`[erase] The CacheDocument with key ("${this._key}") has been completely erased from the datastore.`);
             return new Ok(undefined);
         }
     //
 
     //* MISCS *\\
         public getCacheDocumentStatus() {
+            RblxLogger.debug.logInfo(`[getCacheDocumentStatus] Getting document status for key ("${this._key}")`);
             return this._rblxDocumentStatus
         }
 
         public isOpenAvailable(): Result<boolean, IsOpenAvailableResultError> {
-            if (this._rblxDocumentStatus === "OPENED") return new Ok(false);
-
-            const getSessionIdResult = this._rblxDataStoreUtility.getlockSessionId(this._key);
-            if (getSessionIdResult.isErr()) return new Err("ROBLOX_SERVICE_ERROR");
-
-            const sessionId = getSessionIdResult.value;
-            if (sessionId !== undefined) {
-                if (!this._rblxDocumentSession || this._rblxDocumentSession.sessionId !== sessionId) return new Ok(false);
+            RblxLogger.debug.logInfo(`[isOpenAvailable] Checking if open is available for key ("${this._key}")`);
+            if (this._rblxDocumentStatus === "OPENED") {
+                RblxLogger.debug.logInfo(`[isOpenAvailable] Document already opened for key ("${this._key}")`);
+                return new Ok(false);
             }
 
+            const getSessionIdResult = this._rblxDataStoreUtility.getlockSessionId(this._key);
+            if (getSessionIdResult.isErr()) {
+                RblxLogger.debug.logInfo(`[isOpenAvailable] Failed to get session id for key ("${this._key}")`);
+                return new Err("ROBLOX_SERVICE_ERROR");
+            }
+
+            const sessionId = getSessionIdResult.value;
+            RblxLogger.debug.logInfo(`[isOpenAvailable] sessionId: ${sessionId} for key ("${this._key}")`);
+            if (sessionId !== undefined) {
+                if (!this._rblxDocumentSession || this._rblxDocumentSession.sessionId !== sessionId) {
+                    RblxLogger.debug.logInfo(`[isOpenAvailable] Session id mismatch for key ("${this._key}")`);
+                    return new Ok(false);
+                }
+            }
+
+            RblxLogger.debug.logInfo(`[isOpenAvailable] Open is available for key ("${this._key}")`);
             return new Ok(true);
         }
     //
@@ -470,7 +576,8 @@ export class CacheDocument<DataSchema extends object> {
         * @returns The string representation.
         */
         public toString() {
-            return `ConcurrentDocument(${this._key})`;
+            const str = `ConcurrentDocument(${this._key})`;
+            return str;
         }
     //
 }

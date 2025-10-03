@@ -66,22 +66,35 @@ export class ConcurrentDocument<DataSchema extends object> {
     //
 
     constructor(rblxDocumentProps: ConcurrentDocumentProps<DataSchema>) {
+        RblxLogger.debug.logInfo(`[constructor] Initializing ConcurrentDocument for key ("${rblxDocumentProps.key}")`);
         this._dataStore                          = rblxDocumentProps.dataStore;
+        RblxLogger.debug.logInfo(`[constructor] _dataStore set for key ("${rblxDocumentProps.key}")`);
         this._rblxDataStoreUtility               = rblxDocumentProps.rblxDataStoreUtility;
+        RblxLogger.debug.logInfo(`[constructor] _rblxDataStoreUtility set for key ("${rblxDocumentProps.key}")`);
         this._key                                = rblxDocumentProps.key;
+        RblxLogger.debug.logInfo(`[constructor] _key set to "${rblxDocumentProps.key}"`);
         this._schemaValidate                     = rblxDocumentProps.schemaValidate;
+        RblxLogger.debug.logInfo(`[constructor] _schemaValidate set for key ("${rblxDocumentProps.key}")`);
         this._transformation                     = rblxDocumentProps.transformation;
+        RblxLogger.debug.logInfo(`[constructor] _transformation set for key ("${rblxDocumentProps.key}")`);
         this._defaultSchema                      = rblxDocumentProps.defaultSchema;
+        RblxLogger.debug.logInfo(`[constructor] _defaultSchema set for key ("${rblxDocumentProps.key}")`);
         this._migrations                         = rblxDocumentProps.migrations;
+        RblxLogger.debug.logInfo(`[constructor] _migrations set for key ("${rblxDocumentProps.key}")`);
         this._rblxDocumentStatus                 = "CLOSED";
+        RblxLogger.debug.logInfo(`[constructor] _rblxDocumentStatus initialized to CLOSED for key ("${rblxDocumentProps.key}")`);
 
         this._onOpenEvent                        = new Instance("BindableEvent");
+        RblxLogger.debug.logInfo(`[constructor] _onOpenEvent created for key ("${rblxDocumentProps.key}")`);
         this._onCloseEvent                       = new Instance("BindableEvent");
+        RblxLogger.debug.logInfo(`[constructor] _onCloseEvent created for key ("${rblxDocumentProps.key}")`);
         this._onCacheUpdatedEvent                = new Instance("BindableEvent");
+        RblxLogger.debug.logInfo(`[constructor] _onCacheUpdatedEvent created for key ("${rblxDocumentProps.key}")`);
 
         this.onOpen                              = this._onOpenEvent.Event;
         this.onClose                             = this._onCloseEvent.Event;
         this.onCacheUpdated                      = this._onCacheUpdatedEvent.Event;
+        RblxLogger.debug.logInfo(`[constructor] RBXScriptSignals initialized for key ("${rblxDocumentProps.key}")`);
     }
 
     //* OPEN & CLOSE METHODS *\\
@@ -98,16 +111,23 @@ export class ConcurrentDocument<DataSchema extends object> {
             * Return an error if the document is already opened, indicating it was unnecessary to re-open it.
             * Ensure you cache any successfully opened documents in memory to use for any data operations.
         */
-        if (this._rblxDocumentStatus === "OPENED")   return new Err("DOCUMENT_ALREADY_OPEN");
+        if (this._rblxDocumentStatus === "OPENED") {
+            RblxLogger.debug.logInfo(`[open] Document already opened for key ("${this._key}")`);
+            return new Err("DOCUMENT_ALREADY_OPEN");
+        }
 
         /**
             * Return an error if the closure of the document is pending.
             * You must wait until the document is closed in order to open the document.
         */
-        if (this._rblxDocumentStatus === "CLOSING")  return new Err("DOCUMENT_CLOSE_PENDING");
+        if (this._rblxDocumentStatus === "CLOSING") {
+            RblxLogger.debug.logInfo(`[open] Document close pending for key ("${this._key}")`);
+            return new Err("DOCUMENT_CLOSE_PENDING");
+        }
 
         // Set document status
-        this._rblxDocumentStatus = "CLOSING";
+    this._rblxDocumentStatus = "CLOSING";
+    RblxLogger.debug.logInfo(`[open] Document status set to CLOSING for key ("${this._key}")`);
 
         const transformFunc = (
             data: unknown, 
@@ -146,17 +166,21 @@ export class ConcurrentDocument<DataSchema extends object> {
             
             // eslint-disable-next-line prefer-const
             for (let [targetVersion, migration] of ipairs(this._migrations)) {
+                RblxLogger.debug.logInfo(`[open:transformFunc] Checking migration for targetVersion ${targetVersion} for key ("${this._key}")`);
                 // The previous version that migration will migrate data FROM.
                 const fromVersion = (targetVersion - 1);
-                
+                RblxLogger.debug.logInfo(`[open:transformFunc] fromVersion set to ${fromVersion} for key ("${this._key}")`);
                 // Run the migration ONLY when the version of the old data MATCH the previous version that migration is migrating FROM.
                 if (rblxDocumentSchemaVersion === fromVersion) {
+                    RblxLogger.debug.logInfo(`[open:transformFunc] Running migration for targetVersion ${targetVersion} for key ("${this._key}")`);
                     const migrationResult = migration.migrate(rblxDocumentData);
                     if (migrationResult.isErr()) {
+                        RblxLogger.debug.logInfo(`[open:transformFunc] Migration failed for targetVersion ${targetVersion} for key ("${this._key}")`);
                         return cancel(new Err("MIGRATIONS_ERROR"));
                     }
 
                     rblxDocumentData          = migrationResult.value;
+                    RblxLogger.debug.logInfo(`[open:transformFunc] Migration succeeded for targetVersion ${targetVersion} for key ("${this._key}")`);
                     rblxDocumentSchemaVersion = targetVersion;
                 }
             }
@@ -171,8 +195,10 @@ export class ConcurrentDocument<DataSchema extends object> {
             
             let minimalSupportedVersion: number = rblxDataStoreDocument?.minimalSupportedVersion || 0;
             for (let newestMigration = this._migrations.size(); newestMigration > 0; newestMigration--) {
+                RblxLogger.debug.logInfo(`[open:transformFunc] Checking backwards compatibility for migration ${newestMigration} for key ("${this._key}")`);
                 const migration = this._migrations[newestMigration - 1];
                 if (!migration.backwardsCompatible) {
+                    RblxLogger.debug.logInfo(`[open:transformFunc] Migration ${newestMigration} is not backwards compatible for key ("${this._key}")`);
                     minimalSupportedVersion = newestMigration;
                     break;
                 }
@@ -200,9 +226,10 @@ export class ConcurrentDocument<DataSchema extends object> {
             return errResult;
         }
 
-        this._rblxDocumentStatus = "OPENED";
+    this._rblxDocumentStatus = "OPENED";
+    RblxLogger.debug.logInfo(`[open] Document status set to OPENED for key ("${this._key}")`);
 
-        RblxLogger.debug.logInfo(`Successfully opened the concurrent document with key ("${this._key}").`);
+    RblxLogger.debug.logInfo(`[open] Successfully opened the concurrent document with key ("${this._key}").`);
 
         const okResult = new Ok(updateAsyncResult.value[0]!);
         this._onOpenEvent.Fire(new Ok(undefined));
@@ -218,15 +245,17 @@ export class ConcurrentDocument<DataSchema extends object> {
         RblxLogger.debug.logInfo(`Attempting to close the concurrent document with key ("${this._key}")...`);
         
         if (this._rblxDocumentStatus === "CLOSED") {
+            RblxLogger.debug.logInfo(`[close] Document already closed for key ("${this._key}")`);
             const errResult = new Err<void, CloseRblxDocumentResultError>("DOCUMENT_ALREADY_CLOSED");
             this._onCloseEvent.Fire(errResult);
             return errResult
         }
 
         this._rblxDocumentStatus = "CLOSING";
-
-        RblxLogger.debug.logInfo(`Successfully closed the concurrent document with key ("${this._key}")`);
         
+        RblxLogger.debug.logInfo(`[close] Document status set to CLOSING for key ("${this._key}")`);
+        RblxLogger.debug.logInfo(`[close] Successfully closed the concurrent document with key ("${this._key}")`);
+    
         this._onCloseEvent.Fire(new Ok(undefined));
         return new Ok(undefined);
     }
@@ -241,8 +270,11 @@ export class ConcurrentDocument<DataSchema extends object> {
          */
         public update(transformFunc: (data: DataSchema) => DataSchema): Result<DataSchema, UpdateRblxDocumentResultError> {
             // Ensure document is open before updating.
-            if (this._rblxDocumentStatus === "OPENING" || this._rblxDocumentStatus === "CLOSED") return new Err("DOCUMENT_NOT_OPEN");
-            RblxLogger.debug.logInfo(`Attempting to update the cache of CacheDocument with key ("${this._key}") with latest transformed data to the datastore...`);
+            if (this._rblxDocumentStatus === "OPENING" || this._rblxDocumentStatus === "CLOSED") {
+                RblxLogger.debug.logInfo(`[update] Document not open for key ("${this._key}")`);
+                return new Err("DOCUMENT_NOT_OPEN");
+            }
+            RblxLogger.debug.logInfo(`[update] Attempting to update the cache of CacheDocument with key ("${this._key}") with latest transformed data to the datastore...`);
 
             // Helper to perform update and handle schema validation.
             const tryUpdating = (): Result<DataSchema, UpdateRblxDocumentResultError> => {
@@ -278,9 +310,12 @@ export class ConcurrentDocument<DataSchema extends object> {
 
             // Perform the update operation.
             const tryUpdatingResult = tryUpdating();
-            if (tryUpdatingResult.isErr()) return tryUpdatingResult;
+            if (tryUpdatingResult.isErr()) {
+                RblxLogger.debug.logInfo(`[update] Update failed for key ("${this._key}") with error: ${tryUpdatingResult.errorType}`);
+                return tryUpdatingResult;
+            }
             
-            RblxLogger.debug.logInfo(`Successfully updated the cache of CacheDocument with key ("${this._key}") to the datastore.`);
+            RblxLogger.debug.logInfo(`[update] Successfully updated the cache of CacheDocument with key ("${this._key}") to the datastore.`);
             return new Ok(tryUpdatingResult.value);
         }
 
@@ -291,14 +326,26 @@ export class ConcurrentDocument<DataSchema extends object> {
          */
         public erase(): Result<void, EraseRblxDocumentResultError> {
             // Only erase if document is closed.
-            if (this._rblxDocumentStatus === "OPENED" || this._rblxDocumentStatus === "CLOSING") return new Err("DOCUMENT_MUST_BE_CLOSED");
+            if (this._rblxDocumentStatus === "OPENED" || this._rblxDocumentStatus === "CLOSING") {
+                RblxLogger.debug.logInfo(`[erase] Document must be closed before erasing for key ("${this._key}")`);
+                return new Err("DOCUMENT_MUST_BE_CLOSED");
+            }
             
             // Remove the document from the DataStore.
             const removeAsyncResult = this._rblxDataStoreUtility.removeAsync(this._key);
-            if (removeAsyncResult.isErr()) return new Err("ROBLOX_SERVICE_ERROR");
+            if (removeAsyncResult.isErr()) {
+                RblxLogger.debug.logInfo(`[erase] Erase failed for key ("${this._key}") with error: ${removeAsyncResult.errorType}`);
+                return new Err("ROBLOX_SERVICE_ERROR");
+            }
 
-            RblxLogger.debug.logInfo(`The CacheDocument with key ("${this._key}") has been completely erased from the datastore.`);
+            RblxLogger.debug.logInfo(`[erase] The CacheDocument with key ("${this._key}") has been completely erased from the datastore.`);
             return new Ok(undefined);
+        }
+    //
+
+    //* MISCS *\\
+        public getCacheDocumentStatus() {
+            return this._rblxDocumentStatus
         }
     //
 
@@ -308,7 +355,7 @@ export class ConcurrentDocument<DataSchema extends object> {
      * @returns The string representation.
      */
     public toString() {
-        // Return the class name and key for debugging purposes.
-        return `ConcurrentDocument(${this._key})`;
+        const str = `ConcurrentDocument(${this._key})`;
+        return str;
     }
 }
