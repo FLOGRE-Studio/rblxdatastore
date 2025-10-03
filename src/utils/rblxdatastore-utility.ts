@@ -155,7 +155,7 @@ export class RblxDataStoreUtility {
      * @param data - The data to verify.
      * @returns Ok<RblxStoreDataDocumentFormat<DataSchema>> if valid, Err<VerifyRblxDataStoreDataFormatError> if not.
      */
-    public verifyRblxDataStoreDocumentFormat<DataSchema extends Record<string, unknown>>(data: unknown): Result<RblxStoreDataDocumentFormat<DataSchema>, VerifyRblxDataStoreDataFormatError> {
+    public verifyRblxDataStoreDocumentFormat<DataSchema extends object>(data: unknown): Result<RblxStoreDataDocumentFormat<DataSchema>, VerifyRblxDataStoreDataFormatError> {
         // Data must be a table.
         if (!data || !typeIs(data, "table")) return new Err("INVALID_TABLE_DATA_ARGUMENT");
 

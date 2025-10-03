@@ -29,22 +29,21 @@ import { Err, Ok, Result } from "./utils/result";
 
 export type ConcurrentDocumentStatus                  = "OPENED" | "CLOSED" | "OPENING" | "CLOSING";
 
-interface ConcurrentDocumentProps<DataSchema extends Record<string, unknown>> {
+interface ConcurrentDocumentProps<DataSchema extends object> {
     dataStore                        : DataStore;
     rblxDataStoreUtility             : RblxDataStoreUtility;
     key                              :  string;
-    schemaValidate                   : (data: Partial<DataSchema> & Record<string, unknown>) => boolean;
+    schemaValidate                   : (data: Partial<DataSchema> & object) => boolean;
     defaultSchema                    : DataSchema;
     transformation                   : Transformation<DataSchema>;
     migrations                       : Migration<DataSchema>[];
-    rblxDocumentStoreConfiguration   : RblxDocumentStoreConfiguration;
 }
 
 /**
  * ## ConcurrentDocument
  * A data object that is organized by schema and contain information about entity.
 */
-export class ConcurrentDocument<DataSchema extends Record<string, unknown>> {
+export class ConcurrentDocument<DataSchema extends object> {
     //* FIELDS *\\
         private AUTO_SAVE_INTERVAL                : number = 300;
 
@@ -57,6 +56,14 @@ export class ConcurrentDocument<DataSchema extends Record<string, unknown>> {
         private _migrations                       : Migration<DataSchema>[];
         private _rblxDocumentStatus               : ConcurrentDocumentStatus;
         private _autoSaveThread?                  : thread;
+
+        private _onOpenEvent                      : BindableEvent<(result: Result<void, OpenRblxDocumentResultError>) => void>;
+        private _onCloseEvent                     : BindableEvent<(result: Result<void, CloseRblxDocumentResultError>) => void>;
+        private _onCacheUpdatedEvent              : BindableEvent<() => void>;
+
+        public onOpen                             : RBXScriptSignal<(result: Result<void, OpenRblxDocumentResultError>) => void>;
+        public onClose                            : RBXScriptSignal<(result: Result<void, CloseRblxDocumentResultError>) => void>;
+        public onCacheUpdated                     : RBXScriptSignal<() => void>;
     //
 
     constructor(rblxDocumentProps: ConcurrentDocumentProps<DataSchema>) {
@@ -68,6 +75,14 @@ export class ConcurrentDocument<DataSchema extends Record<string, unknown>> {
         this._defaultSchema                      = rblxDocumentProps.defaultSchema;
         this._migrations                         = rblxDocumentProps.migrations;
         this._rblxDocumentStatus                 = "CLOSED";
+
+        this._onOpenEvent                        = new Instance("BindableEvent");
+        this._onCloseEvent                       = new Instance("BindableEvent");
+        this._onCacheUpdatedEvent                = new Instance("BindableEvent");
+
+        this.onOpen                              = this._onOpenEvent.Event;
+        this.onClose                             = this._onCloseEvent.Event;
+        this.onCacheUpdated                      = this._onCacheUpdatedEvent.Event;
     }
 
     //* OPEN & CLOSE METHODS *\\
@@ -175,16 +190,24 @@ export class ConcurrentDocument<DataSchema extends Record<string, unknown>> {
 
         const updateAsyncResult = this._rblxDataStoreUtility.updateAsync<RblxStoreDataDocumentFormat<DataSchema>, OpenRblxDocumentResultError>(dataKey, transformFunc);
         if (updateAsyncResult.isErr()) {
-            if (updateAsyncResult.errorType !== "DATASTORE_UPDATE_BUDGET_RAN_OUT") return new Err(updateAsyncResult.errorType);
+            if (updateAsyncResult.errorType !== "DATASTORE_UPDATE_BUDGET_RAN_OUT") {
+                const errResult = new Err<RblxStoreDataDocumentFormat<DataSchema>, OpenRblxDocumentResultError>(updateAsyncResult.errorType);
+                this._onOpenEvent.Fire(new Err(errResult.errorType));
+                return errResult;
+            }
 
-            return new Err("ROBLOX_SERVICE_ERROR");
+            const errResult = new Err<RblxStoreDataDocumentFormat<DataSchema>, OpenRblxDocumentResultError>("ROBLOX_SERVICE_ERROR");
+            this._onOpenEvent.Fire(new Err(errResult.errorType));
+            return errResult;
         }
 
         this._rblxDocumentStatus = "OPENED";
 
         RblxLogger.debug.logInfo(`Successfully opened the concurrent document with key ("${this._key}").`);
 
-        return new Ok(updateAsyncResult.value[0]!);
+        const okResult = new Ok(updateAsyncResult.value[0]!);
+        this._onOpenEvent.Fire(new Ok(undefined));
+        return okResult;
     }
 
 
@@ -194,12 +217,18 @@ export class ConcurrentDocument<DataSchema extends Record<string, unknown>> {
      */
     public close(): Result<void, CloseRblxDocumentResultError> {
         RblxLogger.debug.logInfo(`Attempting to close the concurrent document with key ("${this._key}")...`);
+        
+        if (this._rblxDocumentStatus === "CLOSED") {
+            const errResult = new Err<void, CloseRblxDocumentResultError>("DOCUMENT_ALREADY_CLOSED");
+            this._onCloseEvent.Fire(errResult);
+            return errResult
+        }
 
-        if (this._rblxDocumentStatus === "CLOSED") return new Err("DOCUMENT_ALREADY_CLOSED");
         this._rblxDocumentStatus = "CLOSING";
 
         RblxLogger.debug.logInfo(`Successfully closed the concurrent document with key ("${this._key}")`);
-
+        
+        this._onCloseEvent.Fire(new Ok(undefined));
         return new Ok(undefined);
     }
     //

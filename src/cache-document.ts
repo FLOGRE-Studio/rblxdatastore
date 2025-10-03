@@ -29,26 +29,26 @@ import { deepCopyObject } from "./func/deepCopyObject";
     export type SaveRblxDocumentResultError     = "DOCUMENT_NOT_OPEN" | "SESSION_LOCKED" | "NON_SESSION_LOCKING_DOCUMENT_NOT_SUPPORTED" |"ROBLOX_SERVICE_ERROR" | "SCHEMA_VALIDATION_ERROR" | "UNKNOWN";
     export type StealRblxDocumentResultError    = "DOCUMENT_CLOSE_PENDING" | "NON_SESSION_LOCKING_DOCUMENT_NOT_SUPPORTED" | "ROBLOX_SERVICE_ERROR" | "UNKNOWN";
     export type EraseRblxDocumentResultError    = "DOCUMENT_MUST_BE_CLOSED" | "SESSION_LOCKED" | "ROBLOX_SERVICE_ERROR" | "UNKNOWN";
+    export type IsOpenAvailableResultError      = "ROBLOX_SERVICE_ERROR";
 //
 
 export type RblxDocumentStatus                  = "OPENED" | "CLOSED" | "OPENING" | "CLOSING";
 
-interface RblxDocumentProps<DataSchema extends Record<string, unknown>> {
+interface CacheDocumentProps<DataSchema extends object> {
     dataStore                        : DataStore;
     rblxDataStoreUtility             : RblxDataStoreUtility;
     key                              :  string;
-    schemaValidate                   : (data: Partial<DataSchema> & Record<string, unknown>) => boolean;
+    schemaValidate                   : (data: Partial<DataSchema> & object) => boolean;
     defaultSchema                    : DataSchema;
     transformation                   : Transformation<DataSchema>;
     migrations                       : Migration<DataSchema>[];
-    rblxDocumentStoreConfiguration   : RblxDocumentStoreConfiguration;
 }
 
 /**
  * ## CacheDocument
  * A data object that is organized by schema and contain information about entity.
 */
-export class CacheDocument<DataSchema extends Record<string, unknown>> {
+export class CacheDocument<DataSchema extends object> {
     //* FIELDS *\\
         private AUTO_SAVE_INTERVAL                : number = 300;
 
@@ -61,13 +61,20 @@ export class CacheDocument<DataSchema extends Record<string, unknown>> {
         private _migrations                       : Migration<DataSchema>[];
         private _rblxDocumentStatus               : RblxDocumentStatus;
         private _rblxDocumentCache                : DataSchema;
-        private _rblxDocumentStoreConfiguration   : RblxDocumentStoreConfiguration;
         private _rblxDocumentSession?             : RblxDocumentSession;
         private _autoSaveThread?                  : thread;
         private _lockStolen                       : boolean;
+
+        private _onOpenEvent                      : BindableEvent<(result: Result<void, OpenRblxDocumentResultError>) => void>;
+        private _onCloseEvent                     : BindableEvent<(result: Result<void, CloseRblxDocumentResultError>) => void>;
+        private _onCacheUpdatedEvent              : BindableEvent<() => void>;
+
+        public onOpen                             : RBXScriptSignal<(result: Result<void, OpenRblxDocumentResultError>) => void>;
+        public onClose                            : RBXScriptSignal<(result: Result<void, CloseRblxDocumentResultError>) => void>;
+        public onCacheUpdated                     : RBXScriptSignal<() => void>;
     //
 
-    constructor(rblxDocumentProps: RblxDocumentProps<DataSchema>) {
+    constructor(rblxDocumentProps: CacheDocumentProps<DataSchema>) {
         this._dataStore                          = rblxDocumentProps.dataStore;
         this._rblxDataStoreUtility               = rblxDocumentProps.rblxDataStoreUtility;
         this._key                                = rblxDocumentProps.key;
@@ -77,8 +84,15 @@ export class CacheDocument<DataSchema extends Record<string, unknown>> {
         this._migrations                         = rblxDocumentProps.migrations;
         this._rblxDocumentStatus                 = "CLOSED";
         this._rblxDocumentCache                  = this._defaultSchema;
-        this._rblxDocumentStoreConfiguration     = rblxDocumentProps.rblxDocumentStoreConfiguration;
         this._lockStolen                         = false;
+
+        this._onOpenEvent                        = new Instance("BindableEvent");
+        this._onCloseEvent                       = new Instance("BindableEvent");
+        this._onCacheUpdatedEvent                = new Instance("BindableEvent");
+
+        this.onOpen                              = this._onOpenEvent.Event;
+        this.onClose                             = this._onCloseEvent.Event;
+        this.onCacheUpdated                      = this._onCacheUpdatedEvent.Event;
     }
 
     //* OPEN & CLOSE METHODS *\\
@@ -222,8 +236,15 @@ export class CacheDocument<DataSchema extends Record<string, unknown>> {
             if (updateAsyncResult.isErr()) {
                 compensateACID();
                 
-                if (updateAsyncResult.errorType !== "DATASTORE_UPDATE_BUDGET_RAN_OUT") return new Err(updateAsyncResult.errorType);
-                return new Err("ROBLOX_SERVICE_ERROR");
+                if (updateAsyncResult.errorType !== "DATASTORE_UPDATE_BUDGET_RAN_OUT") {
+                    const errResult = new Err<RblxStoreDataDocumentFormat<DataSchema>, OpenRblxDocumentResultError>(updateAsyncResult.errorType);
+                    this._onOpenEvent.Fire(new Err(errResult.errorType));
+                    return errResult;
+                }
+
+                const errResult = new Err<RblxStoreDataDocumentFormat<DataSchema>, OpenRblxDocumentResultError>("ROBLOX_SERVICE_ERROR");
+                this._onOpenEvent.Fire(new Err(errResult.errorType));
+                return errResult;
             }
 
             this._rblxDocumentStatus = "OPENED";
@@ -239,7 +260,10 @@ export class CacheDocument<DataSchema extends Record<string, unknown>> {
             });
 
             RblxLogger.debug.logInfo(`Successfully opened the cache document with key ("${this._key}").`);
-            return new Ok(updateAsyncResult.value[0]!);
+
+            const okResult = new Ok(updateAsyncResult.value[0]!);
+            this._onOpenEvent.Fire(new Ok(undefined));
+            return okResult;
         }
 
         /**
@@ -250,23 +274,34 @@ export class CacheDocument<DataSchema extends Record<string, unknown>> {
         public close(): Result<void, CloseRblxDocumentResultError> {
             RblxLogger.debug.logInfo(`Attempting to close the cache document with key ("${this._key}")...`);
 
-            if (this._rblxDocumentStatus === "CLOSED") return new Err("DOCUMENT_ALREADY_CLOSED");
-            this._rblxDocumentStatus = "CLOSING";
+            const tryClosing: () => Result<void, CloseRblxDocumentResultError> = () => {
+                if (this._rblxDocumentStatus === "CLOSED") return new Err("DOCUMENT_ALREADY_CLOSED");
+                this._rblxDocumentStatus = "CLOSING";
 
-            const result = this._rblxDataStoreUtility.tryUnlocking(this._key, this._rblxDocumentSession);
-            if (result.isErr()) {
-                if (result.errorType === "LOCK_NOT_OWNED") return new Err("SESSION_LOCKED");
-                RblxLogger.debug.logInfo(`Failed to close the cache document with key ("${this._key}") due to the session being locked by other server.`);
-                return new Err("ROBLOX_SERVICE_ERROR");
+                const result = this._rblxDataStoreUtility.tryUnlocking(this._key, this._rblxDocumentSession);
+                if (result.isErr()) {
+                    if (result.errorType === "LOCK_NOT_OWNED") return new Err("SESSION_LOCKED");
+                    RblxLogger.debug.logInfo(`Failed to close the cache document with key ("${this._key}") due to the session being locked by other server.`);
+                    return new Err("ROBLOX_SERVICE_ERROR");
+                }
+
+                RblxLogger.debug.logInfo(`Successfully closed the cache document with key ("${this._key}").`);
+                if (this._autoSaveThread) task.cancel(this._autoSaveThread);
+
+                this._rblxDocumentSession = undefined;
+                this._rblxDocumentStatus = "CLOSED";
+
+                return new Ok(undefined);
             }
 
-            RblxLogger.debug.logInfo(`Successfully closed the cache document with key ("${this._key}").`);
-            if (this._autoSaveThread) task.cancel(this._autoSaveThread);
+            const result = tryClosing();
+            if (result.isErr()) {
+                this._onCloseEvent.Fire(new Err(result.errorType));
+                return result;
+            }
 
-            this._rblxDocumentSession = undefined;
-            this._rblxDocumentStatus = "CLOSED";
-
-            return new Ok(undefined);
+            this._onCloseEvent.Fire(new Ok(undefined));
+            return result;
         }
     //
 
@@ -288,9 +323,10 @@ export class CacheDocument<DataSchema extends Record<string, unknown>> {
         public setCache(newRblxDocumentSchemaCache: DataSchema): Result<DataSchema, SetCacheRblxDocumentResultError> {
             if (this._rblxDocumentStatus !== "OPENED") return new Err("DOCUMENT_NOT_OPEN");
 
-            const copiedCache = deepCopyObject(newRblxDocumentSchemaCache); // Deep copy to avoid mutation.
-            this._rblxDocumentCache = deepFreezeObject(copiedCache); // Freeze to enforce immutability.
+            const copiedCache = deepCopyObject(newRblxDocumentSchemaCache);
+            this._rblxDocumentCache = deepFreezeObject(copiedCache);
 
+            this._onCacheUpdatedEvent.Fire();
             return new Ok(this._rblxDocumentCache);
         }
     //
@@ -403,12 +439,33 @@ export class CacheDocument<DataSchema extends Record<string, unknown>> {
         }
     //
 
+    //* MISCS *\\
+        public getCacheDocumentStatus() {
+            return this._rblxDocumentStatus
+        }
+
+        public isOpenAvailable(): Result<boolean, IsOpenAvailableResultError> {
+            if (this._rblxDocumentStatus === "OPENED") return new Ok(false);
+
+            const getSessionIdResult = this._rblxDataStoreUtility.getlockSessionId(this._key);
+            if (getSessionIdResult.isErr()) return new Err("ROBLOX_SERVICE_ERROR");
+
+            const sessionId = getSessionIdResult.value;
+            if (sessionId !== undefined) {
+                if (!this._rblxDocumentSession || this._rblxDocumentSession.sessionId !== sessionId) return new Ok(false);
+            }
+
+            return new Ok(true);
+        }
+    //
+
     //* META OPERATIONS *\\
-    /**
-     * Returns a string representation of the cache document for debugging.
-     * @returns The string representation.
-     */
-    public toString() {
-        return `ConcurrentDocument(${this._key})`;
-    }
+        /**
+        * Returns a string representation of the cache document for debugging.
+        * @returns The string representation.
+        */
+        public toString() {
+            return `ConcurrentDocument(${this._key})`;
+        }
+    //
 }

@@ -17,11 +17,11 @@ export interface Migration<DataSchema> {
     migrate: (data: Partial<DataSchema>) => Result<DataSchema, unknown>
 }
 
-export interface Transformation<DataSchema extends Record<string, unknown>> {
+export interface Transformation<DataSchema extends object> {
     transform: (data: Partial<DataSchema>) => Result<DataSchema, unknown>
 }
 
-export interface RblxStoreDataDocumentFormat<DataSchema extends Record<string, unknown>> {
+export interface RblxStoreDataDocumentFormat<DataSchema extends object> {
     schemaVersion: number;
     minimalSupportedVersion: number;
     data: DataSchema;

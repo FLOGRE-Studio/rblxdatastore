@@ -18,9 +18,9 @@ import { RblxDocumentStoreConfiguration } from "./utils/rblxdocumentstore-config
 import { RblxLogger } from "./utils/rblxlogger";
 
 
-interface RblxDocumentProps<DataSchema extends Record<string, unknown>> {
+interface RblxDocumentProps<DataSchema extends object> {
     dataStore                             : DataStore;
-    schemaValidate                        : (data: Partial<DataSchema> & Record<string, unknown>) => boolean;
+    schemaValidate                        : (data: Partial<DataSchema> & object) => boolean;
     defaultSchema                         : DataSchema;
     transformation                        : Transformation<DataSchema>;
     migrations                            : Migration<DataSchema>[];
@@ -31,10 +31,10 @@ interface RblxDocumentProps<DataSchema extends Record<string, unknown>> {
  * ## RblxDocumentStore
  * An object that contain a collection of documents.
 */
-export class RblxDocumentStore<DataSchema extends Record<string, unknown>> {
+export class RblxDocumentStore<DataSchema extends object> {
     //* FIELDS *\\
         private _dataStore                             : DataStore;
-        private _schemaValidate                        : (data: Partial<DataSchema> & Record<string, unknown>) => boolean;
+        private _schemaValidate                        : (data: Partial<DataSchema> & object) => boolean;
         private _defaultSchema                         : DataSchema;
         private _transformation                        : Transformation<DataSchema>;
         private _migrations                            : Migration<DataSchema>[];
@@ -92,7 +92,6 @@ export class RblxDocumentStore<DataSchema extends Record<string, unknown>> {
             defaultSchema: this._defaultSchema,
             transformation: this._transformation,
             migrations: this._migrations,
-            rblxDocumentStoreConfiguration: this._rblxDocumentStoreConfiguration
         });
 
         this._cacheDocuments.set(key, cacheDocument);
@@ -111,7 +110,6 @@ export class RblxDocumentStore<DataSchema extends Record<string, unknown>> {
             defaultSchema: this._defaultSchema,
             transformation: this._transformation,
             migrations: this._migrations,
-            rblxDocumentStoreConfiguration: this._rblxDocumentStoreConfiguration
         });
 
         this._concurrentDocuments.set(key, concurrentDocument);
