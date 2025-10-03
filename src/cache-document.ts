@@ -344,7 +344,7 @@ export class CacheDocument<DataSchema extends object> {
          * @returns Ok<DataSchema> with updated data, Err<UpdateRblxDocumentResultError> on failure.
          */
         public update(transformFunc: (data: DataSchema) => DataSchema): Result<DataSchema, UpdateRblxDocumentResultError> {
-            if (this._rblxDocumentStatus !== "OPENED") return new Err("DOCUMENT_NOT_OPEN");
+            if (this._rblxDocumentStatus === "CLOSED") return new Err("DOCUMENT_NOT_OPEN");
             RblxLogger.debug.logInfo(`Attempting to update the cache of CacheDocument with key ("${this._key}") with latest transformed data to the datastore...`);
 
             // Helper to perform update and handle schema validation.
@@ -434,7 +434,7 @@ export class CacheDocument<DataSchema extends object> {
          * @returns Ok<void> on success, Err<EraseRblxDocumentResultError> if not closed or on failure.
          */
         public erase(): Result<void, EraseRblxDocumentResultError> {
-            if (this._rblxDocumentStatus === "OPENED" || this._rblxDocumentStatus === "OPENING") return new Err("DOCUMENT_MUST_BE_CLOSED");
+            if (this._rblxDocumentStatus === "OPENED" || this._rblxDocumentStatus === "CLOSING") return new Err("DOCUMENT_MUST_BE_CLOSED");
             
             const removeAsyncResult = this._rblxDataStoreUtility.removeAsync(this._key);
             if (removeAsyncResult.isErr()) return new Err("ROBLOX_SERVICE_ERROR");
