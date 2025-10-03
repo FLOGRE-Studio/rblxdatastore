@@ -96,10 +96,10 @@ export class CacheDocument<DataSchema extends object> {
 
     //* OPEN & CLOSE METHODS *\\
         /**
-        * Opens the cache document for reading and writing.
-        * Handles session locking, schema validation, migrations, and transformation.
-        * Ensures atomicity and ACID compensation on failure.
-        * @returns Ok<RblxStoreDataDocumentFormat<DataSchema>> on success, Err<OpenRblxDocumentResultError> on failure.
+         * Opens the cache document for reading and writing.
+         * Handles session locking, schema validation, migrations, and transformation.
+         * Ensures atomicity and ACID compensation on failure.
+         * @returns Ok<RblxStoreDataDocumentFormat<DataSchema>> on success, Err<OpenRblxDocumentResultError> on failure.
         */
         public open(): Result<RblxStoreDataDocumentFormat<DataSchema>, OpenRblxDocumentResultError> {
             RblxLogger.debug.logInfo(`Attempting to open the cache document with key ("${this._key}")...`);
@@ -266,9 +266,9 @@ export class CacheDocument<DataSchema extends object> {
         }
 
         /**
-        * Closes the cache document and releases the session lock.
-        * Handles lock ownership and error reporting.
-        * @returns Ok<void> on success, Err<CloseRblxDocumentResultError> on failure.
+         * Closes the cache document and releases the session lock.
+         * Handles lock ownership and error reporting.
+         * @returns Ok<void> on success, Err<CloseRblxDocumentResultError> on failure.
         */
         public close(): Result<void, CloseRblxDocumentResultError> {
             RblxLogger.debug.logInfo(`Attempting to close the cache document with key ("${this._key}")...`);
@@ -276,6 +276,12 @@ export class CacheDocument<DataSchema extends object> {
             const tryClosing: () => Result<void, CloseRblxDocumentResultError> = () => {
                 if (this._rblxDocumentStatus === "CLOSED") return new Err("DOCUMENT_ALREADY_CLOSED");
                 this._rblxDocumentStatus = "CLOSING";
+
+                const saveResult = this.save();
+                if (saveResult.isErr()) {
+                    RblxLogger.debug.logInfo(`Failed to save the cache document with key ("${this._key}") before closing.`);
+                    return new Err("ROBLOX_SERVICE_ERROR");
+                }
 
                 const result = this._rblxDataStoreUtility.tryUnlocking(this._key, this._rblxDocumentSession);
                 if (result.isErr()) {
@@ -394,7 +400,7 @@ export class CacheDocument<DataSchema extends object> {
          * @returns Ok<DataSchema> on success, Err<SaveRblxDocumentResultError> on failure.
          */
         public save(): Result<DataSchema, SaveRblxDocumentResultError> {
-            if (this._rblxDocumentStatus !== "OPENED") return new Err("DOCUMENT_NOT_OPEN");
+            if (this._rblxDocumentStatus === "OPENING" || this._rblxDocumentStatus === "CLOSED") return new Err("DOCUMENT_NOT_OPEN");
             RblxLogger.debug.logInfo(`Attempting to save the current cache of CacheDocument with key ("${this._key}") to the datastore...`);
 
             // Save by updating with the current cache.
