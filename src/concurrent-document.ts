@@ -54,7 +54,6 @@ export class ConcurrentDocument<DataSchema extends object> {
         private _transformation                   : Transformation<DataSchema>;
         private _migrations                       : Migration<DataSchema>[];
         private _rblxDocumentStatus               : ConcurrentDocumentStatus;
-        private _autoSaveThread?                  : thread;
 
         private _onOpenEvent                      : BindableEvent<(result: Result<void, OpenRblxDocumentResultError>) => void>;
         private _onCloseEvent                     : BindableEvent<(result: Result<void, CloseRblxDocumentResultError>) => void>;
@@ -112,9 +111,9 @@ export class ConcurrentDocument<DataSchema extends object> {
             return new Err("DOCUMENT_CLOSE_PENDING");
         }
 
-        // Set document status
-    this._rblxDocumentStatus = "CLOSING";
-    RblxLogger.debug.logInfo(`[open] Document status set to CLOSING for key ("${this._key}")`);
+            // Set document status
+        this._rblxDocumentStatus = "CLOSING";
+        RblxLogger.debug.logInfo(`[open] Document status set to CLOSING for key ("${this._key}")`);
 
         const transformFunc = (
             data: unknown, 
@@ -213,10 +212,10 @@ export class ConcurrentDocument<DataSchema extends object> {
             return errResult;
         }
 
-    this._rblxDocumentStatus = "OPENED";
-    RblxLogger.debug.logInfo(`[open] Document status set to OPENED for key ("${this._key}")`);
+        this._rblxDocumentStatus = "OPENED";
+        RblxLogger.debug.logInfo(`[open] Document status set to OPENED for key ("${this._key}")`);
 
-    RblxLogger.debug.logInfo(`[open] Successfully opened the concurrent document with key ("${this._key}").`);
+        RblxLogger.debug.logInfo(`[open] Successfully opened the concurrent document with key ("${this._key}").`);
 
         const okResult = new Ok(updateAsyncResult.value[0]!);
         this._onOpenEvent.Fire(new Ok(undefined));

@@ -49,7 +49,8 @@ interface CacheDocumentProps<DataSchema extends object> {
 */
 export class CacheDocument<DataSchema extends object> {
     //* FIELDS *\\
-        private AUTO_SAVE_INTERVAL                : number = 300;
+        private _AUTO_SAVE_INTERVAL               : number = 120;
+        private _RENEW_SESSION_INTERVAL           : number = 60;
 
         private _dataStore                        : DataStore;
         private _rblxDataStoreUtility             : RblxDataStoreUtility;
@@ -62,6 +63,7 @@ export class CacheDocument<DataSchema extends object> {
         private _rblxDocumentCache                : DataSchema;
         private _rblxDocumentSession?             : RblxDocumentSession;
         private _autoSaveThread?                  : thread;
+        private _renewThread?                     : thread;
         private _lockStolen                       : boolean;
 
         private _onOpenEvent                      : BindableEvent<(result: Result<void, OpenRblxDocumentResultError>) => void>;
@@ -277,7 +279,7 @@ export class CacheDocument<DataSchema extends object> {
 
             this._autoSaveThread = task.defer(() => {
                 RblxLogger.debug.logInfo(`[open:autoSaveThread] Auto-save thread started for key ("${this._key}")`);
-                while (this._rblxDocumentStatus === "OPENED" && task.wait(this.AUTO_SAVE_INTERVAL)) {
+                while (this._rblxDocumentStatus === "OPENED" && task.wait(this._AUTO_SAVE_INTERVAL)) {
                     RblxLogger.debug.logInfo(`[open:autoSaveThread] Auto-save tick for key ("${this._key}")`);
                     if (this._rblxDocumentStatus !== "OPENED") {
                         RblxLogger.debug.logInfo(`[open:autoSaveThread] Document status not OPENED, exiting auto-save for key ("${this._key}")`);
@@ -292,6 +294,25 @@ export class CacheDocument<DataSchema extends object> {
                 }
                 RblxLogger.debug.logInfo(`[open:autoSaveThread] Auto-save thread ended for key ("${this._key}")`);
             });
+
+            this._renewThread = task.defer(() => {
+                RblxLogger.debug.logInfo(`[open:renewThread] Renew session thread started for key ("${this._key}")`);
+                while (this._rblxDocumentStatus === "OPENED" && task.wait(this._RENEW_SESSION_INTERVAL)) {
+                    RblxLogger.debug.logInfo(`[open:renewThread] Renewed the session for key ("${this._key}")`);
+                    if (this._rblxDocumentStatus !== "OPENED") {
+                        RblxLogger.debug.logInfo(`[open:renewThread] Document status not OPENED, exiting auto-save for key ("${this._key}")`);
+                        return;
+                    }
+
+                    const renewSessionLockResult = this._rblxDataStoreUtility.renewSessionLock(this._key, this._rblxDocumentSession);
+                    if (renewSessionLockResult.isErr()) {
+                        RblxLogger.logWarn(`RblxDataStore renewal session lock feature for the CacheDocument (${this._key}) has failed. Error code: ${renewSessionLockResult.errorType}`)
+                    } else {
+                        RblxLogger.debug.logInfo(`[open:renewThread] Successfully renewed the session lock for key ("${this._key}")`);
+                    }
+                }
+                RblxLogger.debug.logInfo(`[open:renewThread] renew thread ended for key ("${this._key}")`);
+            })
 
             RblxLogger.debug.logInfo(`[open] Successfully opened the cache document with key ("${this._key}").`);
 
@@ -322,7 +343,7 @@ export class CacheDocument<DataSchema extends object> {
                     RblxLogger.debug.logInfo(`Failed to save the cache document with key ("${this._key}") before closing.`);
                     return new Err("ROBLOX_SERVICE_ERROR");
                 }
-
+                
                 const result = this._rblxDataStoreUtility.tryUnlocking(this._key, this._rblxDocumentSession);
                 if (result.isErr()) {
                     if (result.errorType === "LOCK_NOT_OWNED") return new Err("SESSION_LOCKED");
