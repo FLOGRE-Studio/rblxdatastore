@@ -11,7 +11,6 @@
 */
 
 import { Migration, RblxStoreDataDocumentFormat, Transformation } from "./types/global";
-import { RblxDocumentStoreConfiguration } from "./utils/rblxdocumentstore-configuration";
 import { RblxDataStoreUtility } from "./utils/rblxdatastore-utility";
 import { RblxLogger } from "./utils/rblxlogger";
 import { Err, Ok, Result } from "./utils/result";
