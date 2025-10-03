@@ -66,35 +66,22 @@ export class ConcurrentDocument<DataSchema extends object> {
     //
 
     constructor(rblxDocumentProps: ConcurrentDocumentProps<DataSchema>) {
-        RblxLogger.debug.logInfo(`[constructor] Initializing ConcurrentDocument for key ("${rblxDocumentProps.key}")`);
         this._dataStore                          = rblxDocumentProps.dataStore;
-        RblxLogger.debug.logInfo(`[constructor] _dataStore set for key ("${rblxDocumentProps.key}")`);
         this._rblxDataStoreUtility               = rblxDocumentProps.rblxDataStoreUtility;
-        RblxLogger.debug.logInfo(`[constructor] _rblxDataStoreUtility set for key ("${rblxDocumentProps.key}")`);
         this._key                                = rblxDocumentProps.key;
-        RblxLogger.debug.logInfo(`[constructor] _key set to "${rblxDocumentProps.key}"`);
         this._schemaValidate                     = rblxDocumentProps.schemaValidate;
-        RblxLogger.debug.logInfo(`[constructor] _schemaValidate set for key ("${rblxDocumentProps.key}")`);
         this._transformation                     = rblxDocumentProps.transformation;
-        RblxLogger.debug.logInfo(`[constructor] _transformation set for key ("${rblxDocumentProps.key}")`);
         this._defaultSchema                      = rblxDocumentProps.defaultSchema;
-        RblxLogger.debug.logInfo(`[constructor] _defaultSchema set for key ("${rblxDocumentProps.key}")`);
         this._migrations                         = rblxDocumentProps.migrations;
-        RblxLogger.debug.logInfo(`[constructor] _migrations set for key ("${rblxDocumentProps.key}")`);
         this._rblxDocumentStatus                 = "CLOSED";
-        RblxLogger.debug.logInfo(`[constructor] _rblxDocumentStatus initialized to CLOSED for key ("${rblxDocumentProps.key}")`);
 
         this._onOpenEvent                        = new Instance("BindableEvent");
-        RblxLogger.debug.logInfo(`[constructor] _onOpenEvent created for key ("${rblxDocumentProps.key}")`);
         this._onCloseEvent                       = new Instance("BindableEvent");
-        RblxLogger.debug.logInfo(`[constructor] _onCloseEvent created for key ("${rblxDocumentProps.key}")`);
         this._onCacheUpdatedEvent                = new Instance("BindableEvent");
-        RblxLogger.debug.logInfo(`[constructor] _onCacheUpdatedEvent created for key ("${rblxDocumentProps.key}")`);
 
         this.onOpen                              = this._onOpenEvent.Event;
         this.onClose                             = this._onCloseEvent.Event;
         this.onCacheUpdated                      = this._onCacheUpdatedEvent.Event;
-        RblxLogger.debug.logInfo(`[constructor] RBXScriptSignals initialized for key ("${rblxDocumentProps.key}")`);
     }
 
     //* OPEN & CLOSE METHODS *\\

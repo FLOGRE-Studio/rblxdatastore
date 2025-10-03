@@ -344,11 +344,11 @@ export class RblxDataStoreUtility {
      * @param key - The document key to lock.
      * @returns Ok<string> with session ID if lock acquired, Err<TryLockingResultError> if already locked or on failure.
      */
-    public tryLocking(key: string): Result<string, TryLockingResultError> {
+    public tryLocking(key: string, steal?: boolean): Result<string, TryLockingResultError> {
         // Check if the document is already locked.
         const getLockSessionIdResult = this.getlockSessionId(key);
         if (getLockSessionIdResult.isErr()) return new Err("ROBLOX_SERVICE_ERROR");
-        if (getLockSessionIdResult.value) return new Err("SESSION_LOCKED");
+        if (getLockSessionIdResult.value && !steal) return new Err("SESSION_LOCKED");
 
         // Generate a new session ID for the lock.
         const memoryStoreRblxDocumentLockSessionKey = `${key}-lockSession`;
