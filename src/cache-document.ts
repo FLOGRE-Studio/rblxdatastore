@@ -74,39 +74,24 @@ export class CacheDocument<DataSchema extends object> {
     //
 
     constructor(rblxDocumentProps: CacheDocumentProps<DataSchema>) {
-        RblxLogger.debug.logInfo(`[constructor] Initializing CacheDocument for key ("${rblxDocumentProps.key}")`);
         this._dataStore                          = rblxDocumentProps.dataStore;
-        RblxLogger.debug.logInfo(`[constructor] _dataStore set for key ("${rblxDocumentProps.key}")`);
         this._rblxDataStoreUtility               = rblxDocumentProps.rblxDataStoreUtility;
-        RblxLogger.debug.logInfo(`[constructor] _rblxDataStoreUtility set for key ("${rblxDocumentProps.key}")`);
         this._key                                = rblxDocumentProps.key;
-        RblxLogger.debug.logInfo(`[constructor] _key set to "${rblxDocumentProps.key}"`);
         this._schemaValidate                     = rblxDocumentProps.schemaValidate;
-        RblxLogger.debug.logInfo(`[constructor] _schemaValidate set for key ("${rblxDocumentProps.key}")`);
         this._transformation                     = rblxDocumentProps.transformation;
-        RblxLogger.debug.logInfo(`[constructor] _transformation set for key ("${rblxDocumentProps.key}")`);
         this._defaultSchema                      = rblxDocumentProps.defaultSchema;
-        RblxLogger.debug.logInfo(`[constructor] _defaultSchema set for key ("${rblxDocumentProps.key}")`);
         this._migrations                         = rblxDocumentProps.migrations;
-        RblxLogger.debug.logInfo(`[constructor] _migrations set for key ("${rblxDocumentProps.key}")`);
         this._rblxDocumentStatus                 = "CLOSED";
-        RblxLogger.debug.logInfo(`[constructor] _rblxDocumentStatus initialized to CLOSED for key ("${rblxDocumentProps.key}")`);
         this._rblxDocumentCache                  = this._defaultSchema;
-        RblxLogger.debug.logInfo(`[constructor] _rblxDocumentCache initialized for key ("${rblxDocumentProps.key}")`);
         this._lockStolen                         = false;
-        RblxLogger.debug.logInfo(`[constructor] _lockStolen initialized to false for key ("${rblxDocumentProps.key}")`);
 
         this._onOpenEvent                        = new Instance("BindableEvent");
-        RblxLogger.debug.logInfo(`[constructor] _onOpenEvent created for key ("${rblxDocumentProps.key}")`);
         this._onCloseEvent                       = new Instance("BindableEvent");
-        RblxLogger.debug.logInfo(`[constructor] _onCloseEvent created for key ("${rblxDocumentProps.key}")`);
         this._onCacheUpdatedEvent                = new Instance("BindableEvent");
-        RblxLogger.debug.logInfo(`[constructor] _onCacheUpdatedEvent created for key ("${rblxDocumentProps.key}")`);
 
         this.onOpen                              = this._onOpenEvent.Event;
         this.onClose                             = this._onCloseEvent.Event;
         this.onCacheUpdated                      = this._onCacheUpdatedEvent.Event;
-        RblxLogger.debug.logInfo(`[constructor] RBXScriptSignals initialized for key ("${rblxDocumentProps.key}")`);
     }
 
     //* OPEN & CLOSE METHODS *\\
@@ -213,10 +198,12 @@ export class CacheDocument<DataSchema extends object> {
                 }
 
                 if (!this._schemaValidate(rblxDocumentData)) {
+                    RblxLogger.debug.logInfo(`[open:transformFunc] The data with the key ("${this._key}) has failed schema validation."`);
                     return cancel(new Err("SCHEMA_VALIDATION_ERROR"));
                 }
 
                 if (!this._rblxDataStoreUtility.checkForDataStorability(rblxDocumentData)) {
+                    RblxLogger.debug.logInfo(`[open:transformFunc] The data with the key ("${this._key}) cannot be stored."`);
                     return cancel(new Err("UNSTORABLE_DATA_ERROR"));
                 }
                 
@@ -243,11 +230,11 @@ export class CacheDocument<DataSchema extends object> {
                 return new Ok(updatedRblxDataStoreDocument);
             }
             
-            if (!this._rblxDocumentSession || !this._rblxDocumentSession.sessionId) {
-                RblxLogger.debug.logInfo(`[open] No session or sessionId found for key ("${this._key}")`);
+            if (!this._rblxDocumentSession) {
+                RblxLogger.debug.logInfo(`[open] No session information found for key ("${this._key}")`);
                 const lockResult = retry<string, "SESSION_LOCKED" | "ROBLOX_SERVICE_ERROR">(5, 2, 1.1, () => {
                     RblxLogger.debug.logInfo(`[open] Attempting to lock document session for key ("${this._key}")`);
-                    const lockRblxDocumentSessionResult = this._rblxDataStoreUtility.tryLocking(dataKey);
+                    const lockRblxDocumentSessionResult = this._rblxDataStoreUtility.tryLocking(dataKey, this._lockStolen);
                     if (lockRblxDocumentSessionResult.isErr()) {
                         RblxLogger.debug.logInfo(`[open] Locking failed for key ("${this._key}") with error: ${lockRblxDocumentSessionResult.errorType}`);
                         return new Err(lockRblxDocumentSessionResult.errorType);
@@ -257,13 +244,16 @@ export class CacheDocument<DataSchema extends object> {
                 });
 
                 if (lockResult.isErr()) {
-                    RblxLogger.debug.logInfo(`[open] LockResult failed for key ("${this._key}") with error: ${lockResult.errorType}`);
+                    RblxLogger.debug.logInfo(`[open] lockResult failed for key ("${this._key}") with error: ${lockResult.errorType}`);
                     return new Err(lockResult.errorType);
                 }
+
+                this._lockStolen = false;
                 
                 this._rblxDocumentSession = new RblxDocumentSession({
                     sessionId: lockResult.value
                 });
+
                 RblxLogger.debug.logInfo(`[open] Session created for key ("${this._key}") with sessionId: ${lockResult.value}`);
             } 
 
