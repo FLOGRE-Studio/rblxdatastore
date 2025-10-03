@@ -1,6 +1,6 @@
 {
   "name": "@rbxts/rblxdatastore",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "main": "out/main.luau",
   "scripts": {
     "build": "rbxtsc",
