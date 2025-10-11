@@ -330,7 +330,7 @@ export class ConcurrentDocument<DataSchema extends object> {
     //
 
     //* MISCS *\\
-        public getCacheDocumentStatus() {
+        public getConcurrentDocumentStatus() {
             return this._rblxDocumentStatus
         }
     //
