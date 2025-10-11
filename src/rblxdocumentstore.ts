@@ -71,12 +71,24 @@ export class RblxDocumentStore<DataSchema extends object> {
         game.BindToClose(() => {
             RblxLogger.debug.logInfo("Attempting to close all cache documents...");
             for (const [, cacheDocument] of this._cacheDocuments) {
-                if (cacheDocument.getCacheDocumentStatus() !== "CLOSING" && cacheDocument.getCacheDocumentStatus() !== "CLOSED") cacheDocument.close();
+                if (cacheDocument.getCacheDocumentStatus() === "CLOSED") continue;
+                if (cacheDocument.getCacheDocumentStatus() === "CLOSING") {
+                    while (cacheDocument.getCacheDocumentStatus() === "CLOSING") { task.wait() }
+                    continue;
+                }
+
+                cacheDocument.close();
             }
 
             RblxLogger.debug.logInfo("Attempting to close all concurrent documents...");
             for (const [, concurrentDocument] of this._concurrentDocuments) {
-                if (concurrentDocument.getCacheDocumentStatus() !== "CLOSING" && concurrentDocument.getCacheDocumentStatus() !== "CLOSED") concurrentDocument.close();
+                if (concurrentDocument.getConcurrentDocumentStatus() === "CLOSED") continue;
+                if (concurrentDocument.getConcurrentDocumentStatus() === "CLOSING") {
+                    while (concurrentDocument.getConcurrentDocumentStatus() === "CLOSING") { task.wait() }
+                    continue;
+                }
+
+                concurrentDocument.close();
             }
         });
     }
