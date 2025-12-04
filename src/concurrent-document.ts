@@ -84,167 +84,167 @@ export class ConcurrentDocument<DataSchema extends object> {
     }
 
     //* OPEN & CLOSE METHODS *\\
-    /**
-     * Opens the concurrent document for reading and writing.
-     * Handles schema validation, migrations, transformation, and atomicity.
-     * @returns Ok<RblxStoreDataDocumentFormat<DataSchema>> on success, Err<OpenRblxDocumentResultError> on failure.
-     */
-    public open(): Result<RblxStoreDataDocumentFormat<DataSchema>, OpenRblxDocumentResultError> {
-        // Take the key of the document. 
-        const dataKey = this._key;
-        
         /**
-            * Return an error if the document is already opened, indicating it was unnecessary to re-open it.
-            * Ensure you cache any successfully opened documents in memory to use for any data operations.
+        * Opens the concurrent document for reading and writing.
+        * Handles schema validation, migrations, transformation, and atomicity.
+        * @returns Ok<RblxStoreDataDocumentFormat<DataSchema>> on success, Err<OpenRblxDocumentResultError> on failure.
         */
-        if (this._rblxDocumentStatus === "OPENED") {
-            RblxLogger.debug.logInfo(`[open] Document already opened for key ("${this._key}")`);
-            return new Err("DOCUMENT_ALREADY_OPEN");
-        }
-
-        /**
-            * Return an error if the closure of the document is pending.
-            * You must wait until the document is closed in order to open the document.
-        */
-        if (this._rblxDocumentStatus === "CLOSING") {
-            RblxLogger.debug.logInfo(`[open] Document close pending for key ("${this._key}")`);
-            return new Err("DOCUMENT_CLOSE_PENDING");
-        }
-
-            // Set document status
-        this._rblxDocumentStatus = "CLOSING";
-        RblxLogger.debug.logInfo(`[open] Document status set to CLOSING for key ("${this._key}")`);
-
-        const transformFunc = (
-            data: unknown, 
-            cancel: (err: Err<RblxStoreDataDocumentFormat<DataSchema>, OpenRblxDocumentResultError>) => Err<RblxStoreDataDocumentFormat<DataSchema>, OpenRblxDocumentResultError>
-        ): Result<RblxStoreDataDocumentFormat<DataSchema>, OpenRblxDocumentResultError> => {
+        public open(): Result<RblxStoreDataDocumentFormat<DataSchema>, OpenRblxDocumentResultError> {
+            // Take the key of the document. 
+            const dataKey = this._key;
+            
             /**
-                * * The entire function must be atomic; Either everything succeed or nothing will happen.
-                * * Due to the nature of external systems, enforcing atomicity will be difficult.
-                * * In case of any problem e.g failure to lock the session for data, transformation error, migrations error, Roblox API service error,
-                * * we'll try to revert everything such as unlocking the session for the data.
+                * Return an error if the document is already opened, indicating it was unnecessary to re-open it.
+                * Ensure you cache any successfully opened documents in memory to use for any data operations.
             */
-
-            let rblxDataStoreDocument        : RblxStoreDataDocumentFormat<DataSchema> | undefined = undefined;
-            let rblxDocumentData             : DataSchema                                          = this._defaultSchema;
-            let rblxDocumentSchemaVersion    : number                                              = 0;
-            
-            if (data) {
-                const rblxDataStoreDocumentResult = this._rblxDataStoreUtility.verifyRblxDataStoreDocumentFormat<DataSchema>(data);
-
-                if (rblxDataStoreDocumentResult.isOk()) {
-                    rblxDataStoreDocument = rblxDataStoreDocumentResult.value;
-                    rblxDocumentData      = rblxDataStoreDocumentResult.value.data;
-                }
-                if (rblxDataStoreDocumentResult.isErr()) rblxDocumentData = (typeIs(data, "table") ? data as DataSchema : { data } as unknown as DataSchema);
+            if (this._rblxDocumentStatus === "OPENED") {
+                RblxLogger.debug.logInfo(`[open] Document already opened for key ("${this._key}")`);
+                return new Err("DOCUMENT_ALREADY_OPEN");
             }
 
-            if (rblxDataStoreDocument && this._migrations.size() < rblxDataStoreDocument.minimalSupportedVersion) return cancel(new Err("DOCUMENT_VERSION_INCOMPATIBLE"));
-            if (rblxDataStoreDocument) rblxDocumentSchemaVersion = rblxDataStoreDocument.schemaVersion;
-
-            const rblxDocumentDataTransformationResult = this._transformation.transform(rblxDocumentData);
-            if (rblxDocumentDataTransformationResult.isErr()) {
-                return cancel(new Err("TRANSFORMATION_ERROR"));
+            /**
+                * Return an error if the closure of the document is pending.
+                * You must wait until the document is closed in order to open the document.
+            */
+            if (this._rblxDocumentStatus === "CLOSING") {
+                RblxLogger.debug.logInfo(`[open] Document close pending for key ("${this._key}")`);
+                return new Err("DOCUMENT_CLOSE_PENDING");
             }
 
-            rblxDocumentData = rblxDocumentDataTransformationResult.value;
-            
-            // eslint-disable-next-line prefer-const
-            for (let [targetVersion, migration] of ipairs(this._migrations)) {
-                RblxLogger.debug.logInfo(`[open:transformFunc] Checking migration for targetVersion ${targetVersion} for key ("${this._key}")`);
-                // The previous version that migration will migrate data FROM.
-                const fromVersion = (targetVersion - 1);
-                RblxLogger.debug.logInfo(`[open:transformFunc] fromVersion set to ${fromVersion} for key ("${this._key}")`);
-                // Run the migration ONLY when the version of the old data MATCH the previous version that migration is migrating FROM.
-                if (rblxDocumentSchemaVersion === fromVersion) {
-                    RblxLogger.debug.logInfo(`[open:transformFunc] Running migration for targetVersion ${targetVersion} for key ("${this._key}")`);
-                    const migrationResult = migration.migrate(rblxDocumentData);
-                    if (migrationResult.isErr()) {
-                        RblxLogger.debug.logInfo(`[open:transformFunc] Migration failed for targetVersion ${targetVersion} for key ("${this._key}")`);
-                        return cancel(new Err("MIGRATIONS_ERROR"));
+                // Set document status
+            this._rblxDocumentStatus = "CLOSING";
+            RblxLogger.debug.logInfo(`[open] Document status set to CLOSING for key ("${this._key}")`);
+
+            const transformFunc = (
+                data: unknown, 
+                cancel: (err: Err<RblxStoreDataDocumentFormat<DataSchema>, OpenRblxDocumentResultError>) => Err<RblxStoreDataDocumentFormat<DataSchema>, OpenRblxDocumentResultError>
+            ): Result<RblxStoreDataDocumentFormat<DataSchema>, OpenRblxDocumentResultError> => {
+                /**
+                    * * The entire function must be atomic; Either everything succeed or nothing will happen.
+                    * * Due to the nature of external systems, enforcing atomicity will be difficult.
+                    * * In case of any problem e.g failure to lock the session for data, transformation error, migrations error, Roblox API service error,
+                    * * we'll try to revert everything such as unlocking the session for the data.
+                */
+
+                let rblxDataStoreDocument        : RblxStoreDataDocumentFormat<DataSchema> | undefined = undefined;
+                let rblxDocumentData             : DataSchema                                          = this._defaultSchema;
+                let rblxDocumentSchemaVersion    : number                                              = 0;
+                
+                if (data) {
+                    const rblxDataStoreDocumentResult = this._rblxDataStoreUtility.verifyRblxDataStoreDocumentFormat<DataSchema>(data);
+
+                    if (rblxDataStoreDocumentResult.isOk()) {
+                        rblxDataStoreDocument = rblxDataStoreDocumentResult.value;
+                        rblxDocumentData      = rblxDataStoreDocumentResult.value.data;
                     }
-
-                    rblxDocumentData          = migrationResult.value;
-                    RblxLogger.debug.logInfo(`[open:transformFunc] Migration succeeded for targetVersion ${targetVersion} for key ("${this._key}")`);
-                    rblxDocumentSchemaVersion = targetVersion;
+                    if (rblxDataStoreDocumentResult.isErr()) rblxDocumentData = (typeIs(data, "table") ? data as DataSchema : { data } as unknown as DataSchema);
                 }
-            }
 
-            if (!this._schemaValidate(rblxDocumentData)) {
-                return cancel(new Err("SCHEMA_VALIDATION_ERROR"));
-            }
+                if (rblxDataStoreDocument && this._migrations.size() < rblxDataStoreDocument.minimalSupportedVersion) return cancel(new Err("DOCUMENT_VERSION_INCOMPATIBLE"));
+                if (rblxDataStoreDocument) rblxDocumentSchemaVersion = rblxDataStoreDocument.schemaVersion;
 
-            if (!this._rblxDataStoreUtility.checkForDataStorability(rblxDocumentData)) {
-                return cancel(new Err("UNSTORABLE_DATA_ERROR"));
-            }
-            
-            let minimalSupportedVersion: number = rblxDataStoreDocument?.minimalSupportedVersion || 0;
-            for (let newestMigration = this._migrations.size(); newestMigration > 0; newestMigration--) {
-                RblxLogger.debug.logInfo(`[open:transformFunc] Checking backwards compatibility for migration ${newestMigration} for key ("${this._key}")`);
-                const migration = this._migrations[newestMigration - 1];
-                if (!migration.backwardsCompatible) {
-                    RblxLogger.debug.logInfo(`[open:transformFunc] Migration ${newestMigration} is not backwards compatible for key ("${this._key}")`);
-                    minimalSupportedVersion = newestMigration;
-                    break;
+                const rblxDocumentDataTransformationResult = this._transformation.transform(rblxDocumentData);
+                if (rblxDocumentDataTransformationResult.isErr()) {
+                    return cancel(new Err("TRANSFORMATION_ERROR"));
                 }
+
+                rblxDocumentData = rblxDocumentDataTransformationResult.value;
+                
+                // eslint-disable-next-line prefer-const
+                for (let [targetVersion, migration] of ipairs(this._migrations)) {
+                    RblxLogger.debug.logInfo(`[open:transformFunc] Checking migration for targetVersion ${targetVersion} for key ("${this._key}")`);
+                    // The previous version that migration will migrate data FROM.
+                    const fromVersion = (targetVersion - 1);
+                    RblxLogger.debug.logInfo(`[open:transformFunc] fromVersion set to ${fromVersion} for key ("${this._key}")`);
+                    // Run the migration ONLY when the version of the old data MATCH the previous version that migration is migrating FROM.
+                    if (rblxDocumentSchemaVersion === fromVersion) {
+                        RblxLogger.debug.logInfo(`[open:transformFunc] Running migration for targetVersion ${targetVersion} for key ("${this._key}")`);
+                        const migrationResult = migration.migrate(rblxDocumentData);
+                        if (migrationResult.isErr()) {
+                            RblxLogger.debug.logInfo(`[open:transformFunc] Migration failed for targetVersion ${targetVersion} for key ("${this._key}")`);
+                            return cancel(new Err("MIGRATIONS_ERROR"));
+                        }
+
+                        rblxDocumentData          = migrationResult.value;
+                        RblxLogger.debug.logInfo(`[open:transformFunc] Migration succeeded for targetVersion ${targetVersion} for key ("${this._key}")`);
+                        rblxDocumentSchemaVersion = targetVersion;
+                    }
+                }
+
+                if (!this._schemaValidate(rblxDocumentData)) {
+                    return cancel(new Err("SCHEMA_VALIDATION_ERROR"));
+                }
+
+                if (!this._rblxDataStoreUtility.checkForDataStorability(rblxDocumentData)) {
+                    return cancel(new Err("UNSTORABLE_DATA_ERROR"));
+                }
+                
+                let minimalSupportedVersion: number = rblxDataStoreDocument?.minimalSupportedVersion || 0;
+                for (let newestMigration = this._migrations.size(); newestMigration > 0; newestMigration--) {
+                    RblxLogger.debug.logInfo(`[open:transformFunc] Checking backwards compatibility for migration ${newestMigration} for key ("${this._key}")`);
+                    const migration = this._migrations[newestMigration - 1];
+                    if (!migration.backwardsCompatible) {
+                        RblxLogger.debug.logInfo(`[open:transformFunc] Migration ${newestMigration} is not backwards compatible for key ("${this._key}")`);
+                        minimalSupportedVersion = newestMigration;
+                        break;
+                    }
+                }
+
+                const updatedRblxDataStoreDocument: RblxStoreDataDocumentFormat<DataSchema> = {
+                    data: rblxDocumentData,
+                    minimalSupportedVersion: minimalSupportedVersion,
+                    schemaVersion: math.max(this._migrations.size(), rblxDocumentSchemaVersion)
+                }
+
+                return new Ok(updatedRblxDataStoreDocument);
             }
 
-            const updatedRblxDataStoreDocument: RblxStoreDataDocumentFormat<DataSchema> = {
-                data: rblxDocumentData,
-                minimalSupportedVersion: minimalSupportedVersion,
-                schemaVersion: math.max(this._migrations.size(), rblxDocumentSchemaVersion)
-            }
+            const updateAsyncResult = this._rblxDataStoreUtility.updateAsync<RblxStoreDataDocumentFormat<DataSchema>, OpenRblxDocumentResultError>(dataKey, transformFunc);
+            if (updateAsyncResult.isErr()) {
+                if (updateAsyncResult.errorType !== "DATASTORE_UPDATE_BUDGET_RAN_OUT") {
+                    const errResult = new Err<RblxStoreDataDocumentFormat<DataSchema>, OpenRblxDocumentResultError>(updateAsyncResult.errorType);
+                    this._onOpenEvent.Fire(new Err(errResult.errorType));
+                    return errResult;
+                }
 
-            return new Ok(updatedRblxDataStoreDocument);
-        }
-
-        const updateAsyncResult = this._rblxDataStoreUtility.updateAsync<RblxStoreDataDocumentFormat<DataSchema>, OpenRblxDocumentResultError>(dataKey, transformFunc);
-        if (updateAsyncResult.isErr()) {
-            if (updateAsyncResult.errorType !== "DATASTORE_UPDATE_BUDGET_RAN_OUT") {
-                const errResult = new Err<RblxStoreDataDocumentFormat<DataSchema>, OpenRblxDocumentResultError>(updateAsyncResult.errorType);
+                const errResult = new Err<RblxStoreDataDocumentFormat<DataSchema>, OpenRblxDocumentResultError>("ROBLOX_SERVICE_ERROR");
                 this._onOpenEvent.Fire(new Err(errResult.errorType));
                 return errResult;
             }
 
-            const errResult = new Err<RblxStoreDataDocumentFormat<DataSchema>, OpenRblxDocumentResultError>("ROBLOX_SERVICE_ERROR");
-            this._onOpenEvent.Fire(new Err(errResult.errorType));
-            return errResult;
+            this._rblxDocumentStatus = "OPENED";
+            RblxLogger.debug.logInfo(`[open] Document status set to OPENED for key ("${this._key}")`);
+
+            RblxLogger.debug.logInfo(`[open] Successfully opened the concurrent document with key ("${this._key}").`);
+
+            const okResult = new Ok(updateAsyncResult.value[0]!);
+            this._onOpenEvent.Fire(new Ok(undefined));
+            return okResult;
         }
 
-        this._rblxDocumentStatus = "OPENED";
-        RblxLogger.debug.logInfo(`[open] Document status set to OPENED for key ("${this._key}")`);
 
-        RblxLogger.debug.logInfo(`[open] Successfully opened the concurrent document with key ("${this._key}").`);
+        /**
+        * Closes the concurrent document and updates its status.
+        * @returns Ok<void> on success, Err<CloseRblxDocumentResultError> on failure.
+        */
+        public close(): Result<void, CloseRblxDocumentResultError> {
+            RblxLogger.debug.logInfo(`Attempting to close the concurrent document with key ("${this._key}")...`);
+            
+            if (this._rblxDocumentStatus === "CLOSED") {
+                RblxLogger.debug.logInfo(`[close] Document already closed for key ("${this._key}")`);
+                const errResult = new Err<void, CloseRblxDocumentResultError>("DOCUMENT_ALREADY_CLOSED");
+                this._onCloseEvent.Fire(errResult);
+                return errResult
+            }
 
-        const okResult = new Ok(updateAsyncResult.value[0]!);
-        this._onOpenEvent.Fire(new Ok(undefined));
-        return okResult;
-    }
-
-
-    /**
-     * Closes the concurrent document and updates its status.
-     * @returns Ok<void> on success, Err<CloseRblxDocumentResultError> on failure.
-     */
-    public close(): Result<void, CloseRblxDocumentResultError> {
-        RblxLogger.debug.logInfo(`Attempting to close the concurrent document with key ("${this._key}")...`);
+            this._rblxDocumentStatus = "CLOSING";
+            
+            RblxLogger.debug.logInfo(`[close] Document status set to CLOSING for key ("${this._key}")`);
+            RblxLogger.debug.logInfo(`[close] Successfully closed the concurrent document with key ("${this._key}")`);
         
-        if (this._rblxDocumentStatus === "CLOSED") {
-            RblxLogger.debug.logInfo(`[close] Document already closed for key ("${this._key}")`);
-            const errResult = new Err<void, CloseRblxDocumentResultError>("DOCUMENT_ALREADY_CLOSED");
-            this._onCloseEvent.Fire(errResult);
-            return errResult
+            this._onCloseEvent.Fire(new Ok(undefined));
+            return new Ok(undefined);
         }
-
-        this._rblxDocumentStatus = "CLOSING";
-        
-        RblxLogger.debug.logInfo(`[close] Document status set to CLOSING for key ("${this._key}")`);
-        RblxLogger.debug.logInfo(`[close] Successfully closed the concurrent document with key ("${this._key}")`);
-    
-        this._onCloseEvent.Fire(new Ok(undefined));
-        return new Ok(undefined);
-    }
     //
 
     //* DATA OPERATIONS *\\
@@ -336,12 +336,13 @@ export class ConcurrentDocument<DataSchema extends object> {
     //
 
     //* META OPERATIONS *\\
-    /**
-     * Returns a string representation of the concurrent document for debugging.
-     * @returns The string representation.
-     */
-    public toString() {
-        const str = `ConcurrentDocument(${this._key})`;
-        return str;
-    }
+        /**
+        * Returns a string representation of the concurrent document for debugging.
+        * @returns The string representation.
+        */
+        public toString() {
+            const str = `ConcurrentDocument(${this._key})`;
+            return str;
+        }
+    //
 }

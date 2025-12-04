@@ -1,13 +1,21 @@
-export function deepCopyObject<T extends object>(object: T): T {
-    if (!typeIs(object, "table")) return object as T;
-    const clonedObject: Record<string, unknown> = {};
+function deepCopyObjectHelper(object: object, encounteredObjects: Map<object, object>): object {
+    if (!typeIs(object, "table")) return object;
+    const clonedObject: Map<unknown, unknown> = new Map();
+    encounteredObjects.set(object, clonedObject);
 
-    for (const [k, v] of pairs(object as Record<string, unknown>)) {
-        clonedObject[k] = typeIs(v, "table") ? deepCopyObject(v) : v;
+    for (const [k, v] of pairs(object)) {
+        const key = typeIs(k, "table") ? (encounteredObjects.get(k) || deepCopyObjectHelper(k, encounteredObjects)) : k;
+        const value = typeIs(v, "table") ? (encounteredObjects.get(v) || deepCopyObjectHelper(v, encounteredObjects)) : v;
+
+        clonedObject.set(key, value);
     }
 
     const metatable = getmetatable(object);
-    if (metatable) setmetatable(clonedObject, deepCopyObject(metatable));
+    if (metatable) setmetatable(clonedObject, deepCopyObjectHelper(metatable, encounteredObjects));
 
-    return clonedObject as T;
+    return clonedObject as object;
+}
+
+export function deepCopyObject<T extends object>(object: T): T {
+    return deepCopyObjectHelper(object, new Map()) as T;
 }
